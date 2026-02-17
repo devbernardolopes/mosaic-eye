@@ -1,0 +1,1603 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MOSAIC — Video Wall</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --amber: #f59e0b;
+        --amber-dim: #78490a;
+        --screen: #0a0c0f;
+        --panel: #0f1318;
+        --border: #1e2530;
+        --text: #8fa3b8;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: var(--screen);
+        font-family: "Barlow Condensed", sans-serif;
+        color: var(--text);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+      .header-bar::after,
+      .hint-bar::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(0, 0, 0, 0.06) 2px,
+          rgba(0, 0, 0, 0.06) 4px
+        );
+        pointer-events: none;
+        z-index: 1;
+      }
+      .header-bar,
+      .hint-bar {
+        position: relative;
+      }
+      .mono {
+        font-family: "Share Tech Mono", monospace;
+      }
+
+      .header-bar {
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, #0d1117 0%, var(--panel) 100%);
+      }
+      .hint-bar {
+        background: #0a0c0f;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .led {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #22c55e;
+        box-shadow: 0 0 6px #22c55e;
+        animation: blink 2.8s infinite;
+        flex-shrink: 0;
+      }
+      @keyframes blink {
+        0%,
+        90%,
+        100% {
+          opacity: 1;
+        }
+        95% {
+          opacity: 0.2;
+        }
+      }
+
+      .hdr-btn {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: "Share Tech Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        padding: 4px 10px;
+        cursor: pointer;
+        transition:
+          border-color 0.2s,
+          color 0.2s,
+          background 0.2s;
+        white-space: nowrap;
+        position: relative;
+        z-index: 2;
+      }
+      .hdr-btn:hover {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      .hdr-btn.active {
+        border-color: var(--amber);
+        color: var(--amber);
+        background: rgba(245, 158, 11, 0.07);
+      }
+
+      /* ── Grid ── */
+      .mosaic-grid {
+        display: grid;
+        gap: 8px;
+      }
+
+      /* ── Tile shell ── */
+      .tile {
+        position: relative;
+        background: #060809;
+        border: 1px solid var(--border);
+        overflow: hidden;
+        aspect-ratio: 16/9;
+        transition: border-color 0.2s;
+      }
+      .tile:hover {
+        border-color: #2e3d50;
+      }
+
+      .tile iframe {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+        pointer-events: none;
+      }
+      .tile[data-filter="0"] iframe {
+        filter: none;
+      }
+      .tile[data-filter="1"] iframe {
+        filter: grayscale(1);
+      }
+      .tile[data-filter="2"] iframe {
+        filter: sepia(0.9) hue-rotate(200deg);
+      }
+      .tile[data-filter="3"] iframe {
+        filter: invert(1) hue-rotate(180deg);
+      }
+      .tile[data-filter="4"] iframe {
+        filter: contrast(1.6) saturate(1.4);
+      }
+      .tile[data-filter="5"] iframe {
+        filter: hue-rotate(90deg) saturate(1.5);
+      }
+
+      /* Click zone covers everything above the bottom controls */
+      .tile-clickzone {
+        position: absolute;
+        inset: 0 46px 54px 0;
+        z-index: 10;
+        cursor: pointer;
+      }
+
+      /* ══════════════════════════════════════════
+       BOTTOM CONTROLS BAR
+       Layout: [pause][live][filter] [seek──────] [time]
+       Two-row: row1 = seek bar full-width, row2 = buttons + time
+    ══════════════════════════════════════════ */
+      .tile-controls {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 46px;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 5px 8px 6px;
+        background: linear-gradient(
+          0deg,
+          rgba(0, 0, 0, 0.92) 0%,
+          rgba(0, 0, 0, 0) 100%
+        );
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+      }
+      .tile:hover .tile-controls {
+        opacity: 1;
+        pointer-events: all;
+      }
+
+      /* Seek row */
+      .seek-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+      }
+      /* Hidden for live streams */
+      .seek-row.hidden {
+        display: none;
+      }
+
+      /* Buttons row */
+      .btn-row {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      /* Time display */
+      .time-display {
+        font-family: "Share Tech Mono", monospace;
+        font-size: 9px;
+        letter-spacing: 0.5px;
+        color: #5a7a9a;
+        white-space: nowrap;
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+
+      /* Generic control button */
+      .ctrl-btn {
+        height: 24px;
+        min-width: 24px;
+        flex-shrink: 0;
+        background: rgba(10, 12, 15, 0.85);
+        border: 1px solid #2e3d50;
+        color: #8fa3b8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 10px;
+        font-family: "Share Tech Mono", monospace;
+        letter-spacing: 0.5px;
+        gap: 4px;
+        padding: 0 5px;
+        transition:
+          border-color 0.15s,
+          color 0.15s,
+          background 0.15s;
+      }
+      .ctrl-btn:hover {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      .ctrl-btn.active {
+        border-color: var(--amber);
+        color: var(--amber);
+        background: rgba(245, 158, 11, 0.12);
+      }
+      .ctrl-btn.live-sync {
+        border-color: #ef4444;
+        color: #ef4444;
+        display: none;
+      }
+      .ctrl-btn.live-sync:hover {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: #f87171;
+        color: #f87171;
+      }
+      .tile.paused .ctrl-btn.live-sync {
+        animation: livepulse 1.4s ease-in-out infinite;
+      }
+      @keyframes livepulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+        }
+        50% {
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.32);
+        }
+      }
+
+      /* ── Seek slider ── */
+      input[type="range"].seek-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        flex: 1;
+        height: 3px;
+        min-width: 0;
+        border-radius: 2px;
+        background: linear-gradient(to right, var(--amber) 0%, #2e3d50 0%);
+        outline: none;
+        cursor: pointer;
+        transition: height 0.15s;
+      }
+      input[type="range"].seek-slider:hover {
+        height: 5px;
+      }
+      input[type="range"].seek-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 0;
+        height: 0;
+        transition:
+          width 0.15s,
+          height 0.15s;
+      }
+      input[type="range"].seek-slider:hover::-webkit-slider-thumb {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--amber);
+        cursor: pointer;
+        box-shadow: 0 0 5px rgba(245, 158, 11, 0.6);
+      }
+      input[type="range"].seek-slider::-moz-range-thumb {
+        width: 0;
+        height: 0;
+        border: none;
+        background: transparent;
+      }
+      input[type="range"].seek-slider:hover::-moz-range-thumb {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--amber);
+        cursor: pointer;
+        border: none;
+      }
+
+      /* ══════════════════════════════════════════
+       VERTICAL VOLUME — right side column
+    ══════════════════════════════════════════ */
+      .vol-col {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        top: 0;
+        width: 46px;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        padding-bottom: 6px;
+        gap: 6px;
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+        background: linear-gradient(
+          270deg,
+          rgba(0, 0, 0, 0.7) 0%,
+          rgba(0, 0, 0, 0) 100%
+        );
+      }
+      .tile:hover .vol-col {
+        opacity: 1;
+        pointer-events: all;
+      }
+
+      /* Mute icon button inside vol column */
+      .vol-mute-btn {
+        width: 26px;
+        height: 26px;
+        flex-shrink: 0;
+        background: rgba(10, 12, 15, 0.85);
+        border: 1px solid #2e3d50;
+        color: #5a7a9a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          color 0.15s;
+      }
+      .vol-mute-btn:hover {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      .tile.muted .vol-mute-btn {
+        color: var(--amber);
+        border-color: var(--amber-dim);
+      }
+
+      /* Vertical slider track */
+      .vol-track {
+        position: relative;
+        width: 26px;
+        flex: 1;
+        max-height: 120px;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      input[type="range"].vol-slider-v {
+        -webkit-appearance: none;
+        appearance: none;
+        writing-mode: vertical-lr; /* standards */
+        direction: rtl;
+        width: 3px;
+        height: 100%;
+        background: linear-gradient(to top, var(--amber) 0%, #2e3d50 0%);
+        border-radius: 2px;
+        outline: none;
+        cursor: pointer;
+        transition: width 0.15s;
+      }
+      /* Firefox vertical */
+      @supports (-moz-appearance: none) {
+        input[type="range"].vol-slider-v {
+          writing-mode: vertical-lr;
+          appearance: slider-vertical;
+        }
+      }
+      input[type="range"].vol-slider-v:hover {
+        width: 5px;
+      }
+      input[type="range"].vol-slider-v::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--amber);
+        cursor: pointer;
+        box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
+      }
+      input[type="range"].vol-slider-v::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--amber);
+        cursor: pointer;
+        border: none;
+      }
+
+      /* Vol % label */
+      .vol-label {
+        font-family: "Share Tech Mono", monospace;
+        font-size: 9px;
+        color: #3a4d60;
+        letter-spacing: 0.5px;
+        line-height: 1;
+        text-align: center;
+      }
+
+      /* ── Top-right remove ── */
+      .tile-topright {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 25;
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+      }
+      .tile:hover .tile-topright {
+        opacity: 1;
+        pointer-events: all;
+      }
+      .tile-remove {
+        width: 24px;
+        height: 24px;
+        background: rgba(0, 0, 0, 0.8);
+        border: 1px solid #2e3d50;
+        color: #8fa3b8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          color 0.15s;
+      }
+      .tile-remove:hover {
+        border-color: #ef4444;
+        color: #ef4444;
+      }
+
+      /* ── Mute badge (top-left) ── */
+      .mute-badge {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(0, 0, 0, 0.75);
+        border: 1px solid #2e3d50;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-family: "Share Tech Mono", monospace;
+        letter-spacing: 1px;
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+      }
+      .tile:hover .mute-badge {
+        opacity: 1;
+      }
+      .tile.muted .mute-badge {
+        opacity: 1;
+        color: var(--amber);
+        border-color: var(--amber-dim);
+      }
+
+      /* ── Filter badge ── */
+      .filter-badge {
+        position: absolute;
+        top: 38px;
+        left: 10px;
+        z-index: 20;
+        font-family: "Share Tech Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 1px;
+        background: rgba(0, 0, 0, 0.75);
+        border: 1px solid #2e3d50;
+        padding: 2px 7px;
+        color: #5a7a9a;
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+      }
+      .tile:hover .filter-badge {
+        opacity: 1;
+      }
+      .tile[data-filter]:not([data-filter="0"]) .filter-badge {
+        opacity: 1;
+        color: #a78bfa;
+        border-color: #4c3d7a;
+      }
+
+      /* ── Channel label ── */
+      .tile-label {
+        position: absolute;
+        bottom: 58px;
+        left: 10px;
+        font-family: "Share Tech Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        color: rgba(255, 255, 255, 0.16);
+        pointer-events: none;
+        z-index: 15;
+      }
+
+      /* ── Paused overlay ── */
+      .paused-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 8;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.35);
+        pointer-events: none;
+      }
+      .tile.paused .paused-overlay {
+        display: flex;
+      }
+      .pause-icon-big {
+        width: 52px;
+        height: 52px;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.5);
+      }
+
+      /* ── Empty tile ── */
+      .tile-empty {
+        position: relative;
+        border: 1px dashed #1e2d3d;
+        background: #070a0d;
+        aspect-ratio: 16/9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition:
+          border-color 0.2s,
+          background 0.2s;
+        overflow: hidden;
+      }
+      .tile-empty:hover,
+      .tile-empty.drag-over {
+        border-color: var(--amber);
+        background: #0e0f0c;
+      }
+      .plus-icon {
+        width: 36px;
+        height: 36px;
+        border: 1px solid #2e3d50;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        color: #2e3d50;
+        margin-bottom: 10px;
+        transition:
+          border-color 0.2s,
+          color 0.2s;
+      }
+      .tile-empty:hover .plus-icon,
+      .tile-empty.drag-over .plus-icon {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+
+      /* ── Modal ── */
+      .modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+      }
+      .modal-backdrop.open {
+        display: flex;
+      }
+      .modal-box {
+        background: var(--panel);
+        border: 1px solid #2e3d50;
+        padding: 28px 32px;
+        width: 520px;
+        max-width: 95vw;
+      }
+      .modal-box input {
+        background: #070a0d;
+        border: 1px solid #2e3d50;
+        color: #c8d8e8;
+        padding: 10px 14px;
+        width: 100%;
+        font-family: "Share Tech Mono", monospace;
+        font-size: 13px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .modal-box input:focus {
+        border-color: var(--amber);
+      }
+      .modal-box input::placeholder {
+        color: #3a4d60;
+      }
+      .btn-primary {
+        background: var(--amber);
+        color: #000;
+        font-family: "Barlow Condensed", sans-serif;
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        padding: 10px 24px;
+        border: none;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .btn-primary:hover {
+        background: #fbbf24;
+      }
+      .btn-cancel {
+        background: transparent;
+        border: 1px solid #2e3d50;
+        color: #8fa3b8;
+        font-family: "Barlow Condensed", sans-serif;
+        font-weight: 600;
+        font-size: 13px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        padding: 10px 18px;
+        cursor: pointer;
+        transition:
+          border-color 0.2s,
+          color 0.2s;
+      }
+      .btn-cancel:hover {
+        border-color: #8fa3b8;
+        color: #c8d8e8;
+      }
+      .label-tag {
+        font-size: 10px;
+        font-family: "Share Tech Mono", monospace;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--amber);
+        margin-bottom: 6px;
+        display: block;
+      }
+      @keyframes shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        20% {
+          transform: translateX(-6px);
+        }
+        40% {
+          transform: translateX(6px);
+        }
+        60% {
+          transform: translateX(-4px);
+        }
+        80% {
+          transform: translateX(4px);
+        }
+      }
+      .shake {
+        animation: shake 0.4s ease;
+      }
+      @keyframes clickpulse {
+        0% {
+          opacity: 0.35;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+      .click-pulse {
+        position: absolute;
+        inset: 0;
+        background: rgba(245, 158, 11, 0.06);
+        pointer-events: none;
+        z-index: 30;
+        animation: clickpulse 0.35s ease forwards;
+      }
+      @media (max-width: 640px) {
+        .mosaic-grid {
+          grid-template-columns: 1fr !important;
+        }
+        .mosaic-grid > * {
+          grid-column: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <div
+      class="header-bar px-4 py-2 flex items-center justify-between gap-4 flex-wrap"
+    >
+      <div
+        class="flex items-center gap-4"
+        style="position: relative; z-index: 2"
+      >
+        <div class="led"></div>
+        <span
+          class="mono text-xs tracking-widest uppercase"
+          style="color: var(--amber)"
+          >MOSAIC</span
+        >
+        <span class="mono text-xs" style="color: #2e3d50">//</span>
+        <span class="mono text-xs tracking-wider">VIDEO WALL</span>
+      </div>
+      <div
+        class="flex items-center gap-2 flex-wrap"
+        style="position: relative; z-index: 2"
+      >
+        <button class="hdr-btn" id="layout-btn" onclick="cycleLayout()">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="1" y="1" width="6" height="6" rx="1" opacity=".7" />
+            <rect x="9" y="1" width="6" height="6" rx="1" opacity=".7" />
+            <rect x="1" y="9" width="6" height="6" rx="1" opacity=".7" />
+            <rect x="9" y="9" width="6" height="6" rx="1" opacity=".7" />
+          </svg>
+          LAYOUT
+        </button>
+        <span class="mono text-xs" style="color: #2e3d50">|</span>
+        <span class="mono text-xs" id="tile-counter" style="color: #3a4d60"
+          >0 / 4</span
+        >
+        <span class="mono text-xs" style="color: #2e3d50">|</span>
+        <span class="mono text-xs" id="clock" style="color: #3a4d60"></span>
+      </div>
+    </div>
+
+    <!-- Hint bar -->
+    <div class="hint-bar px-4 py-1 flex items-center">
+      <span
+        class="mono"
+        style="
+          position: relative;
+          z-index: 2;
+          font-size: 10px;
+          color: #2e3d50;
+          letter-spacing: 1px;
+        "
+      >
+        CLICK TILE&#8202;→&#8202;MUTE &nbsp;·&nbsp; HOVER&#8202;→&#8202;CONTROLS
+        &nbsp;·&nbsp; CLICK + OR DROP URL&#8202;→&#8202;ADD
+      </span>
+    </div>
+
+    <!-- Grid -->
+    <div class="p-3">
+      <div class="mosaic-grid" id="mosaic"></div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-backdrop" id="modal">
+      <div class="modal-box">
+        <div class="flex items-center justify-between mb-5">
+          <span
+            style="
+              font-size: 18px;
+              font-weight: 700;
+              letter-spacing: 2px;
+              text-transform: uppercase;
+              color: #c8d8e8;
+            "
+            >ADD VIDEO</span
+          >
+          <button
+            onclick="closeModal()"
+            style="
+              background: none;
+              border: none;
+              color: #3a4d60;
+              font-size: 20px;
+              cursor: pointer;
+              line-height: 1;
+            "
+          >
+            &#x2715;
+          </button>
+        </div>
+        <span class="label-tag">YOUTUBE URL</span>
+        <input
+          type="text"
+          id="url-input"
+          placeholder="https://youtube.com/watch?v=...  or  youtu.be/..."
+          autocomplete="off"
+        />
+        <div
+          id="url-error"
+          class="mono mt-2"
+          style="font-size: 11px; color: #ef4444; min-height: 16px"
+        ></div>
+        <div class="mt-2 mb-5">
+          <span class="label-tag" style="color: #3a4d60; margin-bottom: 3px"
+            >ACCEPTED</span
+          >
+          <div
+            class="mono"
+            style="font-size: 11px; color: #3a4d60; line-height: 2"
+          >
+            youtube.com/watch?v=ID &nbsp;&middot;&nbsp; youtu.be/ID<br />
+            youtube.com/live/ID &nbsp;&middot;&nbsp; youtube.com/embed/ID
+          </div>
+        </div>
+        <div class="flex items-center gap-3 justify-end">
+          <button class="btn-cancel" onclick="closeModal()">CANCEL</button>
+          <button class="btn-primary" onclick="confirmAdd()">ADD</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ═══════════════════════════════════════════════════════════════════════════════
+      //  STATE
+      //  tile = { id, muted, volume, paused, filter, isLive, currentTime, duration }
+      // ═══════════════════════════════════════════════════════════════════════════════
+      var MAX = 4;
+      var tiles = [null, null, null, null];
+      var pendingSlot = null;
+      var layoutVariant = 0;
+
+      var LAYOUTS = {
+        1: [["1/-1"]],
+        2: [
+          ["auto", "auto"],
+          ["1/-1", "1/-1"],
+        ],
+        3: [
+          ["auto", "auto", "1/-1"],
+          ["auto", "auto", "auto"],
+          ["1/-1", "auto", "auto"],
+        ],
+        4: [
+          ["auto", "auto", "auto", "auto"],
+          ["1/-1", "auto", "auto", "1/-1"],
+          ["auto", "auto", "1/-1", "1/-1"],
+        ],
+      };
+
+      var FILTER_NAMES = ["NORMAL", "GRAY", "COOL", "INVERT", "VIVID", "HUE+"];
+
+      // ── SVG icons ──────────────────────────────────────────────────────────────────
+      var SVG = {
+        pause:
+          '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="1" width="3" height="10" rx="0.5"/><rect x="7" y="1" width="3" height="10" rx="0.5"/></svg>',
+        play: '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor"><path d="M3 1.5l8 4.5-8 4.5z"/></svg>',
+        filter:
+          '<svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="5" cy="5" r="3.5"/><circle cx="9" cy="9" r="3.5"/></svg>',
+        liveDot:
+          '<svg width="8" height="8" viewBox="0 0 8 8" fill="#ef4444"><circle cx="4" cy="4" r="3" opacity=".3"/><circle cx="4" cy="4" r="2"/></svg>',
+        volOn:
+          '<svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><path d="M1 4h3l4-3v12l-4-3H1V4zm8 1a4 4 0 010 6"/></svg>',
+        volOff:
+          '<svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><path d="M1 4h3l4-3v12l-4-3H1V4zm11-1l-5 5 5 5"/></svg>',
+        muteOn: '<path d="M1 4h3l4-3v12l-4-3H1V4zm11-1l-5 5 5 5"/>',
+        muteOff:
+          '<path d="M1 4h3l4-3v12l-4-3H1V4zm8 1a4 4 0 010 6M10.5 3.5a6 6 0 010 9"/>',
+        close:
+          '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 1l8 8M9 1L1 9"/></svg>',
+      };
+
+      // ── Clock ──────────────────────────────────────────────────────────────────────
+      function updateClock() {
+        var now = new Date();
+        document.getElementById("clock").textContent = now.toLocaleTimeString(
+          "en-US",
+          {
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          },
+        );
+      }
+      setInterval(updateClock, 1000);
+      updateClock();
+
+      // ── Time formatting ────────────────────────────────────────────────────────────
+      function fmtTime(s) {
+        if (!isFinite(s) || s < 0) return "--:--";
+        s = Math.floor(s);
+        var h = Math.floor(s / 3600);
+        var m = Math.floor((s % 3600) / 60);
+        var sec = s % 60;
+        if (h > 0) return h + ":" + pad(m) + ":" + pad(sec);
+        return pad(m) + ":" + pad(sec);
+      }
+      function pad(n) {
+        return n < 10 ? "0" + n : "" + n;
+      }
+
+      // ── YT postMessage API ─────────────────────────────────────────────────────────
+      function ytCmd(iframe, func, args) {
+        if (!iframe || !iframe.contentWindow) return;
+        try {
+          iframe.contentWindow.postMessage(
+            JSON.stringify({ event: "command", func: func, args: args || [] }),
+            "*",
+          );
+        } catch (e) {}
+      }
+
+      // ── Receive YT messages ────────────────────────────────────────────────────────
+      window.addEventListener("message", function (e) {
+        if (!e.data) return;
+        var data;
+        try {
+          data = JSON.parse(e.data);
+        } catch (x) {
+          return;
+        }
+
+        // Handle both infoDelivery and initialDelivery
+        if (
+          (data.event === "infoDelivery" || data.event === "initialDelivery") &&
+          data.info
+        ) {
+          var info = data.info;
+          var vd = info.videoData || {};
+          var vid = vd.video_id;
+          if (!vid) return;
+
+          var dur = info.duration;
+          var ct = info.currentTime;
+          var isLive =
+            dur === 0 || vd.isLive === true || vd.isLiveContent === true;
+
+          for (var i = 0; i < tiles.length; i++) {
+            if (!tiles[i] || tiles[i].id !== vid) continue;
+            var tile = tiles[i];
+
+            // Detect live (only once — once known, don't flip back)
+            if (tile.isLive === null && typeof dur === "number") {
+              tile.isLive = isLive;
+              var tileEl = document.querySelector(
+                '.tile[data-idx="' + i + '"]',
+              );
+              if (tileEl) {
+                var lb = tileEl.querySelector(".live-sync");
+                if (lb) lb.style.display = isLive ? "flex" : "none";
+                // Hide seek row for live streams
+                var sr = tileEl.querySelector(".seek-row");
+                if (sr) {
+                  if (isLive) sr.classList.add("hidden");
+                  else sr.classList.remove("hidden");
+                }
+              }
+            }
+
+            // Update seek bar + time display for VODs
+            if (
+              !tile.isLive &&
+              typeof ct === "number" &&
+              typeof dur === "number" &&
+              dur > 0
+            ) {
+              tile.currentTime = ct;
+              tile.duration = dur;
+              var tileEl2 = document.querySelector(
+                '.tile[data-idx="' + i + '"]',
+              );
+              if (tileEl2) {
+                var seekEl = tileEl2.querySelector(".seek-slider");
+                var timeEl = tileEl2.querySelector(".time-display");
+                if (seekEl && !seekEl._dragging) {
+                  var pct = (ct / dur) * 100;
+                  seekEl.value = pct;
+                  seekEl.style.background =
+                    "linear-gradient(to right, var(--amber) " +
+                    pct +
+                    "%, #2e3d50 " +
+                    pct +
+                    "%)";
+                }
+                if (timeEl)
+                  timeEl.textContent = fmtTime(ct) + " / " + fmtTime(dur);
+              }
+            }
+            break;
+          }
+        }
+      });
+
+      // ── URL parsing ────────────────────────────────────────────────────────────────
+      function parseVideoUrl(raw) {
+        var url = (raw || "").trim(),
+          m;
+        m = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+        if (m) return m[1];
+        m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+        if (m) return m[1];
+        m = url.match(/youtube\.com\/(?:live|embed)\/([a-zA-Z0-9_-]{11})/);
+        if (m) return m[1];
+        return null;
+      }
+
+      function buildEmbedUrl(id) {
+        return (
+          "https://www.youtube-nocookie.com/embed/" +
+          id +
+          "?autoplay=1&mute=1&enablejsapi=1&loop=1&playlist=" +
+          id +
+          "&rel=0&modestbranding=1"
+        );
+      }
+
+      // ── Layout ─────────────────────────────────────────────────────────────────────
+      function getActiveCount() {
+        return tiles.filter(function (t) {
+          return t !== null;
+        }).length;
+      }
+
+      function applyLayout() {
+        var grid = document.getElementById("mosaic");
+        var count = getActiveCount();
+        if (!count) {
+          grid.style.gridTemplateColumns = "1fr";
+          return;
+        }
+        var variants = LAYOUTS[count];
+        var v = layoutVariant % variants.length;
+        var spans = variants[v];
+        grid.style.gridTemplateColumns = count === 1 ? "1fr" : "1fr 1fr";
+        var cells = grid.querySelectorAll(".tile, .tile-empty");
+        for (var i = 0; i < cells.length; i++)
+          cells[i].style.gridColumn = spans[i] || "auto";
+        var btn = document.getElementById("layout-btn");
+        if (variants.length > 1) {
+          btn.classList.add("active");
+          btn.title =
+            "Layout " + (v + 1) + " / " + variants.length + " — click to cycle";
+        } else {
+          btn.classList.remove("active");
+          btn.title = "Cycle layout";
+        }
+      }
+      function cycleLayout() {
+        layoutVariant++;
+        applyLayout();
+      }
+
+      // ── Smart render ───────────────────────────────────────────────────────────────
+      function render() {
+        var grid = document.getElementById("mosaic");
+        document.getElementById("tile-counter").textContent =
+          getActiveCount() + " / " + MAX;
+
+        for (var i = 0; i < MAX; i++) {
+          var existing = grid.querySelector('[data-idx="' + i + '"]');
+          var tileData = tiles[i];
+
+          if (tileData) {
+            if (existing && existing.classList.contains("tile")) continue; // already live, skip
+            var newEl = makeLiveTile(tileData, i);
+            if (existing) grid.replaceChild(newEl, existing);
+            else {
+              var after = grid.querySelector('[data-idx="' + (i - 1) + '"]');
+              if (after && after.nextSibling)
+                grid.insertBefore(newEl, after.nextSibling);
+              else if (after) grid.appendChild(newEl);
+              else grid.insertBefore(newEl, grid.firstChild);
+            }
+          } else {
+            if (!existing) {
+              grid.appendChild(makeEmptyTile(i));
+            } else if (existing.classList.contains("tile")) {
+              grid.replaceChild(makeEmptyTile(i), existing);
+            }
+          }
+        }
+        layoutVariant = 0;
+        applyLayout();
+      }
+
+      // ── Make live tile ─────────────────────────────────────────────────────────────
+      function makeLiveTile(tile, idx) {
+        var div = document.createElement("div");
+        div.className =
+          "tile" +
+          (tile.muted ? " muted" : "") +
+          (tile.paused ? " paused" : "");
+        div.dataset.idx = idx;
+        div.dataset.filter = tile.filter;
+
+        // iframe
+        var iframe = document.createElement("iframe");
+        iframe.src = buildEmbedUrl(tile.id);
+        iframe.allow = "autoplay; fullscreen";
+        iframe.allowFullscreen = true;
+        (function (fr, t) {
+          fr.addEventListener("load", function () {
+            setTimeout(function () {
+              // Subscribe to player events (required for infoDelivery)
+              fr.contentWindow.postMessage(
+                JSON.stringify({
+                  event: "listening",
+                  id: 1,
+                  channel: "widget",
+                }),
+                "*",
+              );
+              ytCmd(fr, "setVolume", [t.volume]);
+              ytCmd(fr, t.muted ? "mute" : "unMute");
+              if (t.paused) ytCmd(fr, "pauseVideo");
+            }, 900);
+          });
+        })(iframe, tile);
+        div.appendChild(iframe);
+
+        // Paused overlay
+        var pov = document.createElement("div");
+        pov.className = "paused-overlay";
+        pov.innerHTML = '<div class="pause-icon-big">' + SVG.play + "</div>";
+        div.appendChild(pov);
+
+        // Click zone (mute toggle — excludes right vol column and bottom controls)
+        var cz = document.createElement("div");
+        cz.className = "tile-clickzone";
+        (function (i) {
+          cz.addEventListener("click", function (e) {
+            handleTileClick(i, e);
+          });
+        })(idx);
+        div.appendChild(cz);
+
+        // Mute badge
+        var mb = document.createElement("div");
+        mb.className = "mute-badge";
+        renderMuteBadge(mb, tile.muted);
+        div.appendChild(mb);
+
+        // Filter badge
+        var fb = document.createElement("div");
+        fb.className = "filter-badge";
+        fb.textContent = FILTER_NAMES[tile.filter];
+        div.appendChild(fb);
+
+        // Channel label
+        var lbl = document.createElement("div");
+        lbl.className = "tile-label";
+        lbl.textContent = "CH-0" + (idx + 1);
+        div.appendChild(lbl);
+
+        // Remove button
+        var tr = document.createElement("div");
+        tr.className = "tile-topright";
+        var rm = document.createElement("div");
+        rm.className = "tile-remove";
+        rm.innerHTML = SVG.close;
+        rm.title = "Remove";
+        (function (i) {
+          rm.addEventListener("click", function (e) {
+            e.stopPropagation();
+            removeTile(i);
+          });
+        })(idx);
+        tr.appendChild(rm);
+        div.appendChild(tr);
+
+        // Bottom controls bar
+        var bar = document.createElement("div");
+        bar.className = "tile-controls";
+        buildControlBar(bar, div, iframe, tile, idx);
+        div.appendChild(bar);
+
+        // Vertical volume column (right side)
+        buildVolCol(div, iframe, tile);
+
+        return div;
+      }
+
+      // ── Bottom control bar ─────────────────────────────────────────────────────────
+      function buildControlBar(bar, div, iframe, tile, idx) {
+        // ── Seek row (hidden for live) ──
+        var seekRow = document.createElement("div");
+        seekRow.className = "seek-row" + (tile.isLive ? " hidden" : "");
+
+        var seekSlider = document.createElement("input");
+        seekSlider.type = "range";
+        seekSlider.className = "seek-slider";
+        seekSlider.min = 0;
+        seekSlider.max = 100;
+        seekSlider.step = 0.1;
+        seekSlider.value = 0;
+        seekSlider.style.background =
+          "linear-gradient(to right, var(--amber) 0%, #2e3d50 0%)";
+        seekSlider._dragging = false;
+
+        seekSlider.addEventListener("click", function (e) {
+          e.stopPropagation();
+        });
+        seekSlider.addEventListener("mousedown", function () {
+          seekSlider._dragging = true;
+        });
+        seekSlider.addEventListener(
+          "touchstart",
+          function () {
+            seekSlider._dragging = true;
+          },
+          { passive: true },
+        );
+        seekSlider.addEventListener("input", function (e) {
+          e.stopPropagation();
+          var pct = parseFloat(this.value);
+          this.style.background =
+            "linear-gradient(to right, var(--amber) " +
+            pct +
+            "%, #2e3d50 " +
+            pct +
+            "%)";
+          if (timeDisp && tile.duration) {
+            timeDisp.textContent =
+              fmtTime((tile.duration * pct) / 100) +
+              " / " +
+              fmtTime(tile.duration);
+          }
+        });
+        seekSlider.addEventListener("change", function (e) {
+          e.stopPropagation();
+          seekSlider._dragging = false;
+          if (tile.duration) {
+            var secs = (parseFloat(this.value) / 100) * tile.duration;
+            ytCmd(iframe, "seekTo", [secs, true]);
+          }
+        });
+        seekSlider.addEventListener("mouseup", function () {
+          setTimeout(function () {
+            seekSlider._dragging = false;
+          }, 50);
+        });
+        seekSlider.addEventListener("touchend", function () {
+          setTimeout(function () {
+            seekSlider._dragging = false;
+          }, 50);
+        });
+
+        var timeDisp = document.createElement("span");
+        timeDisp.className = "time-display";
+        timeDisp.textContent = "--:-- / --:--";
+
+        seekRow.appendChild(seekSlider);
+        seekRow.appendChild(timeDisp);
+        bar.appendChild(seekRow);
+
+        // ── Buttons row ──
+        var btnRow = document.createElement("div");
+        btnRow.className = "btn-row";
+
+        // Pause/play
+        var pauseBtn = document.createElement("button");
+        pauseBtn.className = "ctrl-btn";
+        pauseBtn.title = "Pause / Play";
+        pauseBtn.innerHTML = tile.paused ? SVG.play : SVG.pause;
+        pauseBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          tile.paused = !tile.paused;
+          ytCmd(iframe, tile.paused ? "pauseVideo" : "playVideo");
+          div.classList.toggle("paused", tile.paused);
+          pauseBtn.innerHTML = tile.paused ? SVG.play : SVG.pause;
+          if (tile.isLive) liveBtn.style.display = "flex";
+        });
+        btnRow.appendChild(pauseBtn);
+
+        // Live sync button
+        var liveBtn = document.createElement("button");
+        liveBtn.className = "ctrl-btn live-sync";
+        liveBtn.title = "Jump to live edge";
+        liveBtn.innerHTML = SVG.liveDot + "&thinsp;LIVE";
+        liveBtn.style.display = tile.isLive === true ? "flex" : "none";
+        liveBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          tile.paused = false;
+          div.classList.remove("paused");
+          pauseBtn.innerHTML = SVG.pause;
+          var freshSrc = buildEmbedUrl(tile.id);
+          iframe.src = "";
+          setTimeout(function () {
+            iframe.src = freshSrc;
+            iframe.addEventListener("load", function onReload() {
+              iframe.removeEventListener("load", onReload);
+              setTimeout(function () {
+                iframe.contentWindow.postMessage(
+                  JSON.stringify({
+                    event: "listening",
+                    id: 1,
+                    channel: "widget",
+                  }),
+                  "*",
+                );
+                ytCmd(iframe, "setVolume", [tile.volume]);
+                ytCmd(iframe, tile.muted ? "mute" : "unMute");
+              }, 900);
+            });
+          }, 80);
+        });
+        btnRow.appendChild(liveBtn);
+
+        // Filter
+        var filterBtn = document.createElement("button");
+        filterBtn.className = "ctrl-btn" + (tile.filter !== 0 ? " active" : "");
+        filterBtn.title = "Cycle video filter";
+        filterBtn.innerHTML = SVG.filter;
+        filterBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          tile.filter = (tile.filter + 1) % FILTER_NAMES.length;
+          div.dataset.filter = tile.filter;
+          div.querySelector(".filter-badge").textContent =
+            FILTER_NAMES[tile.filter];
+          filterBtn.classList.toggle("active", tile.filter !== 0);
+        });
+        btnRow.appendChild(filterBtn);
+
+        bar.appendChild(btnRow);
+      }
+
+      // ── Vertical volume column ─────────────────────────────────────────────────────
+      function buildVolCol(div, iframe, tile) {
+        var col = document.createElement("div");
+        col.className = "vol-col";
+
+        // Vol label
+        var volLabel = document.createElement("div");
+        volLabel.className = "vol-label";
+        volLabel.textContent = tile.muted ? "—" : tile.volume;
+
+        // Slider track wrapper
+        var track = document.createElement("div");
+        track.className = "vol-track";
+
+        var slider = document.createElement("input");
+        slider.type = "range";
+        slider.className = "vol-slider-v";
+        slider.min = 0;
+        slider.max = 100;
+        slider.step = 1;
+        slider.value = tile.muted ? 0 : tile.volume;
+        slider.title = "Volume";
+        // Gradient fill
+        function updateVolGradient(val) {
+          slider.style.background =
+            "linear-gradient(to top, var(--amber) " +
+            val +
+            "%, #2e3d50 " +
+            val +
+            "%)";
+        }
+        updateVolGradient(tile.muted ? 0 : tile.volume);
+
+        slider.addEventListener("click", function (e) {
+          e.stopPropagation();
+        });
+        slider.addEventListener("input", function (e) {
+          e.stopPropagation();
+          var vol = parseInt(this.value);
+          if (vol > 0) tile.volume = vol;
+          ytCmd(iframe, "setVolume", [vol]);
+          updateVolGradient(vol);
+          volLabel.textContent = vol;
+
+          if (vol > 0 && tile.muted) {
+            tile.muted = false;
+            ytCmd(iframe, "unMute");
+            div.classList.remove("muted");
+            renderMuteBadge(div.querySelector(".mute-badge"), false);
+            muteBtn.innerHTML = SVG.volOn;
+          } else if (vol === 0 && !tile.muted) {
+            tile.muted = true;
+            ytCmd(iframe, "mute");
+            div.classList.add("muted");
+            renderMuteBadge(div.querySelector(".mute-badge"), true);
+            muteBtn.innerHTML = SVG.volOff;
+            volLabel.textContent = "—";
+          }
+        });
+
+        track.appendChild(slider);
+
+        // Mute icon button (bottom of column)
+        var muteBtn = document.createElement("div");
+        muteBtn.className = "vol-mute-btn";
+        muteBtn.innerHTML = tile.muted ? SVG.volOff : SVG.volOn;
+        muteBtn.title = "Mute / Unmute";
+        muteBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          // Delegate to the tile-click mute toggle
+          var idx = parseInt(div.dataset.idx);
+          handleTileClick(idx, e);
+          // Sync slider + label after toggle
+          setTimeout(function () {
+            slider.value = tile.muted ? 0 : tile.volume;
+            updateVolGradient(tile.muted ? 0 : tile.volume);
+            muteBtn.innerHTML = tile.muted ? SVG.volOff : SVG.volOn;
+            volLabel.textContent = tile.muted ? "—" : tile.volume;
+          }, 0);
+        });
+
+        col.appendChild(track);
+        col.appendChild(muteBtn);
+        col.appendChild(volLabel);
+        div.appendChild(col);
+
+        // Expose slider and icon for external sync from handleTileClick
+        div._volSlider = slider;
+        div._volIcon = muteBtn;
+        div._volLabel = volLabel;
+        div._volGradient = updateVolGradient;
+      }
+
+      // ── Mute badge ─────────────────────────────────────────────────────────────────
+      function renderMuteBadge(badge, muted) {
+        if (!badge) return;
+        badge.innerHTML =
+          '<svg width="11" height="11" viewBox="0 0 14 14" fill="currentColor">' +
+          (muted ? SVG.muteOn : SVG.muteOff) +
+          "</svg>" +
+          (muted ? "&thinsp;MUTED" : "&thinsp;ON");
+        badge.style.color = muted ? "var(--amber)" : "";
+        badge.style.borderColor = muted ? "var(--amber-dim)" : "";
+      }
+
+      // ── Tile click → mute toggle ───────────────────────────────────────────────────
+      function handleTileClick(idx, e) {
+        e.stopPropagation();
+        var tile = tiles[idx];
+        if (!tile) return;
+        tile.muted = !tile.muted;
+        var tileEl = document.querySelector('.tile[data-idx="' + idx + '"]');
+        if (!tileEl) return;
+        var iframe = tileEl.querySelector("iframe");
+        ytCmd(iframe, tile.muted ? "mute" : "unMute");
+        if (!tile.muted) ytCmd(iframe, "setVolume", [tile.volume]);
+        tileEl.classList.toggle("muted", tile.muted);
+        renderMuteBadge(tileEl.querySelector(".mute-badge"), tile.muted);
+        // Sync vol column
+        if (tileEl._volSlider)
+          tileEl._volSlider.value = tile.muted ? 0 : tile.volume;
+        if (tileEl._volGradient)
+          tileEl._volGradient(tile.muted ? 0 : tile.volume);
+        if (tileEl._volIcon)
+          tileEl._volIcon.innerHTML = tile.muted ? SVG.volOff : SVG.volOn;
+        if (tileEl._volLabel)
+          tileEl._volLabel.textContent = tile.muted ? "—" : tile.volume;
+        var pulse = document.createElement("div");
+        pulse.className = "click-pulse";
+        tileEl.appendChild(pulse);
+        setTimeout(function () {
+          pulse.remove();
+        }, 350);
+      }
+
+      // ── Empty tile ─────────────────────────────────────────────────────────────────
+      function makeEmptyTile(idx) {
+        var div = document.createElement("div");
+        div.className = "tile-empty";
+        div.dataset.idx = idx;
+        div.innerHTML =
+          '<div style="display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">' +
+          '<div class="plus-icon">+</div>' +
+          '<span class="mono" style="font-size:11px;color:#2e3d50;letter-spacing:2px">CH-0' +
+          (idx + 1) +
+          "</span>" +
+          '<span class="mono" style="font-size:10px;color:#1a2530">CLICK OR DROP URL</span>' +
+          "</div>";
+        div.addEventListener("click", function () {
+          openModal(idx);
+        });
+        div.addEventListener("dragover", function (e) {
+          e.preventDefault();
+          div.classList.add("drag-over");
+        });
+        div.addEventListener("dragleave", function () {
+          div.classList.remove("drag-over");
+        });
+        div.addEventListener("drop", function (e) {
+          e.preventDefault();
+          div.classList.remove("drag-over");
+          var text =
+            e.dataTransfer.getData("text/plain") ||
+            e.dataTransfer.getData("text/uri-list");
+          if (text) handleUrlInput(idx, text.trim());
+        });
+        return div;
+      }
+
+      // ── Remove ─────────────────────────────────────────────────────────────────────
+      function removeTile(idx) {
+        tiles[idx] = null;
+        render();
+      }
+
+      // ── Modal ──────────────────────────────────────────────────────────────────────
+      function openModal(idx) {
+        pendingSlot = idx;
+        document.getElementById("url-input").value = "";
+        document.getElementById("url-error").textContent = "";
+        document.getElementById("modal").classList.add("open");
+        setTimeout(function () {
+          document.getElementById("url-input").focus();
+        }, 80);
+      }
+      function closeModal() {
+        document.getElementById("modal").classList.remove("open");
+        pendingSlot = null;
+      }
+      function confirmAdd() {
+        handleUrlInput(pendingSlot, document.getElementById("url-input").value);
+      }
+      function handleUrlInput(idx, raw) {
+        var id = parseVideoUrl(raw);
+        if (!id) {
+          var inp = document.getElementById("url-input");
+          var err = document.getElementById("url-error");
+          if (inp) {
+            inp.classList.remove("shake");
+            void inp.offsetWidth;
+            inp.classList.add("shake");
+            setTimeout(function () {
+              inp.classList.remove("shake");
+            }, 400);
+          }
+          if (err)
+            err.textContent = "Unrecognized URL. Paste a valid YouTube link.";
+          return;
+        }
+        tiles[idx] = {
+          id: id,
+          muted: true,
+          volume: 80,
+          paused: false,
+          filter: 0,
+          isLive: null,
+          currentTime: 0,
+          duration: 0,
+        };
+        closeModal();
+        render();
+      }
+
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") closeModal();
+        if (
+          e.key === "Enter" &&
+          document.getElementById("modal").classList.contains("open")
+        )
+          confirmAdd();
+      });
+
+      render();
+    </script>
+  </body>
+</html>
