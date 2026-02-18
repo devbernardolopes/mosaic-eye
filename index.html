@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MOSAIC — Video Wall</title>
+    <title>MOSAIC EYE — A video embedding solution</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/dexie@3.2.7/dist/dexie.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap"
@@ -112,6 +113,15 @@
         border-color: var(--amber);
         color: var(--amber);
         background: rgba(245, 158, 11, 0.07);
+      }
+      .hdr-btn:disabled {
+        opacity: 0.42;
+        cursor: not-allowed;
+        border-color: var(--border);
+        color: #4b5a6b;
+      }
+      #osd-btn {
+        display: none !important;
       }
 
       /* ── Grid ── */
@@ -777,6 +787,137 @@
         margin-bottom: 6px;
         display: block;
       }
+      .history-modal-box {
+        background: var(--panel);
+        border: 1px solid #2e3d50;
+        padding: 24px 26px;
+        width: 900px;
+        max-width: 96vw;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .history-list {
+        margin-top: 12px;
+        border: 1px solid #253242;
+        background: #0a0e13;
+        overflow: auto;
+      }
+      .history-row {
+        display: grid;
+        grid-template-columns: 1fr auto auto auto;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-bottom: 1px solid #1b2632;
+        overflow: hidden;
+      }
+      .history-row:last-child {
+        border-bottom: none;
+      }
+      .history-url-btn {
+        height: 24px;
+        min-width: 0;
+        padding: 0 8px;
+        border: 1px solid #2e3d50;
+        background: rgba(10, 12, 15, 0.88);
+        color: #9ab0c7;
+        text-align: left;
+        font-family: "Share Tech Mono", monospace;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      .history-url-btn:hover {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      .history-url-btn-text {
+        min-width: 0;
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .history-platform {
+        font-family: "Share Tech Mono", monospace;
+        font-size: 10px;
+        color: #5a7a9a;
+        letter-spacing: 1px;
+        border: 1px solid #2e3d50;
+        padding: 2px 6px;
+      }
+      .history-btn {
+        height: 24px;
+        min-width: 24px;
+        padding: 0 8px;
+        border: 1px solid #2e3d50;
+        background: rgba(10, 12, 15, 0.88);
+        color: #8fa3b8;
+        font-family: "Share Tech Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.7px;
+        cursor: pointer;
+      }
+      .history-btn:hover {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      .history-btn.delete {
+        background: #5b1f24;
+        border-color: #7f1d1d;
+        color: #fecaca;
+        font-weight: 700;
+      }
+      .history-btn.delete:hover {
+        background: #7f1d1d;
+        border-color: #991b1b;
+        color: #fee2e2;
+      }
+      .history-empty {
+        padding: 20px 10px;
+        text-align: center;
+        color: #3a4d60;
+        font-family: "Share Tech Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 1px;
+      }
+      .toast-stack {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        z-index: 2100;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .toast {
+        min-width: 180px;
+        max-width: 340px;
+        border: 1px solid #2e3d50;
+        background: rgba(10, 12, 15, 0.95);
+        color: #9ab0c7;
+        padding: 8px 10px;
+        font-family: "Share Tech Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.4px;
+        opacity: 0;
+        transform: translateY(8px);
+        transition:
+          opacity 0.18s,
+          transform 0.18s;
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .toast.success {
+        border-color: #2f5134;
+        color: #86efac;
+      }
+      .toast.error {
+        border-color: #7f1d1d;
+        color: #fecaca;
+      }
       @keyframes shake {
         0%,
         100% {
@@ -837,10 +978,10 @@
         <span
           class="mono text-xs tracking-widest uppercase"
           style="color: var(--amber)"
-          >MOSAIC</span
+          >MOSAIC EYE</span
         >
         <span class="mono text-xs" style="color: #2e3d50">//</span>
-        <span class="mono text-xs tracking-wider">VIDEO WALL</span>
+        <span class="mono text-xs tracking-wider">A video embedding solution</span>
       </div>
       <div
         class="flex items-center gap-2 flex-wrap"
@@ -854,6 +995,14 @@
             <rect x="9" y="9" width="6" height="6" rx="1" opacity=".7" />
           </svg>
           LAYOUT
+        </button>
+        <button
+          class="hdr-btn"
+          id="history-btn"
+          onclick="openHistoryModal()"
+          disabled
+        >
+          HISTORY
         </button>
         <button class="hdr-btn" id="osd-btn" onclick="toggleOsdMode()">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
@@ -884,8 +1033,8 @@
           letter-spacing: 1px;
         "
       >
-        CLICK TILE&#8202;→&#8202;MUTE &nbsp;·&nbsp; HOVER&#8202;→&#8202;CONTROLS
-        &nbsp;·&nbsp; CLICK + OR DROP URL&#8202;→&#8202;ADD
+        SUPPORTS YOUTUBE, KICK &nbsp;&middot;&nbsp; CTRL + SHIFT + E -> ADD
+        &nbsp;&middot;&nbsp; CLIPBOARD URL AUTO-FILL
       </span>
     </div>
 
@@ -955,6 +1104,37 @@
         </div>
       </div>
     </div>
+    <div class="modal-backdrop" id="history-modal">
+      <div class="history-modal-box">
+        <div class="flex items-center justify-between">
+          <span
+            style="
+              font-size: 16px;
+              font-weight: 700;
+              letter-spacing: 2px;
+              text-transform: uppercase;
+              color: #c8d8e8;
+            "
+            >HISTORY</span
+          >
+          <button
+            onclick="closeHistoryModal()"
+            style="
+              background: none;
+              border: none;
+              color: #3a4d60;
+              font-size: 20px;
+              cursor: pointer;
+              line-height: 1;
+            "
+          >
+            &#x2715;
+          </button>
+        </div>
+        <div id="history-list" class="history-list"></div>
+      </div>
+    </div>
+    <div id="toast-stack" class="toast-stack"></div>
 
     <script>
       // ═══════════════════════════════════════════════════════════════════════════════
@@ -966,6 +1146,7 @@
       var layoutVariant = 0;
       var customOsdEnabled = false;
       var nextTileUid = 1;
+      var db = null;
 
       var LAYOUTS = {
         1: [["1/-1"]],
@@ -987,11 +1168,166 @@
 
       var FILTER_NAMES = ["NORMAL", "GRAY", "COOL", "INVERT", "VIVID", "HUE+"];
 
+      function getPlatformLabel(type) {
+        if (type === "youtube") return "YouTube";
+        if (type === "kick") return "Kick";
+        if (!type) return "Unknown";
+        return type.charAt(0).toUpperCase() + type.slice(1);
+      }
+
+      function initHistoryDb() {
+        if (typeof Dexie === "undefined") return;
+        db = new Dexie("mosaic_eye_db");
+        db.version(1).stores({
+          history: "++id,addedAt,type,url",
+        });
+      }
+
+      async function updateHistoryButtonState() {
+        var btn = document.getElementById("history-btn");
+        if (!btn) return;
+        if (!db) {
+          btn.disabled = true;
+          return;
+        }
+        try {
+          var count = await db.history.count();
+          btn.disabled = count === 0;
+        } catch (e) {
+          btn.disabled = true;
+        }
+      }
+
+      async function saveHistoryEntry(url, type) {
+        if (!db || !url) return;
+        try {
+          await db.history.add({
+            url: url,
+            type: type,
+            addedAt: Date.now(),
+          });
+          updateHistoryButtonState();
+        } catch (e) {}
+      }
+
+      async function getHistoryEntries() {
+        if (!db) return [];
+        try {
+          return await db.history.orderBy("addedAt").reverse().toArray();
+        } catch (e) {
+          return [];
+        }
+      }
+
+      async function deleteHistoryEntry(id) {
+        if (!db) return;
+        try {
+          await db.history.delete(id);
+        } catch (e) {}
+      }
+
+      function truncateForDisplay(s, maxLen) {
+        if (!s) return "";
+        if (s.length <= maxLen) return s;
+        return s.slice(0, maxLen - 3) + "...";
+      }
+
+      async function renderHistoryModal() {
+        var list = document.getElementById("history-list");
+        if (!list) return;
+        var entries = await getHistoryEntries();
+        if (!entries.length) {
+          list.innerHTML = '<div class="history-empty">NO HISTORY YET</div>';
+          return;
+        }
+        list.innerHTML = "";
+        for (var i = 0; i < entries.length; i++) {
+          var entry = entries[i];
+          var row = document.createElement("div");
+          row.className = "history-row";
+
+          var urlBtn = document.createElement("button");
+          urlBtn.className = "history-url-btn";
+          urlBtn.title = entry.url;
+          var urlText = document.createElement("span");
+          urlText.className = "history-url-btn-text";
+          urlText.textContent = truncateForDisplay(entry.url, 140);
+          urlBtn.appendChild(urlText);
+          urlBtn.addEventListener(
+            "click",
+            (function (it) {
+              return function () {
+                handleUrlInput(getNextEmptySlot(), it.url);
+              };
+            })(entry),
+          );
+          row.appendChild(urlBtn);
+
+          var platform = document.createElement("div");
+          platform.className = "history-platform";
+          platform.textContent = getPlatformLabel(entry.type);
+          row.appendChild(platform);
+
+          var copyBtn = document.createElement("button");
+          copyBtn.className = "history-btn";
+          copyBtn.title = "Copy URL";
+          copyBtn.innerHTML = SVG.copy;
+          copyBtn.addEventListener(
+            "click",
+            (function (it) {
+              return function () {
+                copyText(it.url)
+                  .then(function () {
+                    showToast("URL copied", "success");
+                  })
+                  .catch(function () {
+                    showToast("Copy failed", "error");
+                  });
+              };
+            })(entry),
+          );
+          row.appendChild(copyBtn);
+
+          var delBtn = document.createElement("button");
+          delBtn.className = "history-btn delete";
+          delBtn.textContent = "X";
+          delBtn.title = "Delete entry";
+          delBtn.addEventListener(
+            "click",
+            (function (it) {
+              return async function () {
+                await deleteHistoryEntry(it.id);
+                await renderHistoryModal();
+                updateHistoryButtonState();
+              };
+            })(entry),
+          );
+          row.appendChild(delBtn);
+
+          list.appendChild(row);
+        }
+      }
+
+      async function openHistoryModal() {
+        var modal = document.getElementById("history-modal");
+        if (!modal) return;
+        await renderHistoryModal();
+        modal.classList.add("open");
+      }
+
+      function closeHistoryModal() {
+        var modal = document.getElementById("history-modal");
+        if (!modal) return;
+        modal.classList.remove("open");
+      }
+
       // ── SVG icons ──────────────────────────────────────────────────────────────────
       var SVG = {
         pause:
           '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="1" width="3" height="10" rx="0.5"/><rect x="7" y="1" width="3" height="10" rx="0.5"/></svg>',
         play: '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor"><path d="M3 1.5l8 4.5-8 4.5z"/></svg>',
+        copy:
+          '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="6" y="2.5" width="7.5" height="9.5" rx="1.5"/><rect x="2.5" y="6" width="7.5" height="7.5" rx="1.5"/></svg>',
         filter:
           '<svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="5" cy="5" r="3.5"/><circle cx="9" cy="9" r="3.5"/></svg>',
         liveDot:
@@ -1704,6 +2040,24 @@
         });
       }
 
+      function showToast(message, kind) {
+        var stack = document.getElementById("toast-stack");
+        if (!stack) return;
+        var t = document.createElement("div");
+        t.className = "toast " + (kind || "success");
+        t.textContent = message;
+        stack.appendChild(t);
+        setTimeout(function () {
+          t.classList.add("show");
+        }, 10);
+        setTimeout(function () {
+          t.classList.remove("show");
+          setTimeout(function () {
+            if (t.parentNode) t.parentNode.removeChild(t);
+          }, 180);
+        }, 2200);
+      }
+
       function buildTileFooter(div, tile) {
         var footer = document.createElement("div");
         footer.className = "tile-footer";
@@ -1711,7 +2065,7 @@
         var copyBtn = document.createElement("button");
         copyBtn.className = "tile-footer-btn";
         copyBtn.type = "button";
-        copyBtn.textContent = "COPY URL";
+        copyBtn.innerHTML = SVG.copy;
         copyBtn.title = "Copy source URL";
         copyBtn.addEventListener("click", function (e) {
           e.stopPropagation();
@@ -1719,7 +2073,13 @@
           var t = tiles[liveIdx];
           if (!t) return;
           var url = buildSourceUrl(t.type, t.id);
-          copyText(url).catch(function () {});
+          copyText(url)
+            .then(function () {
+              showToast("URL copied", "success");
+            })
+            .catch(function () {
+              showToast("Copy failed", "error");
+            });
         });
 
         var removeBtn = document.createElement("button");
@@ -1828,6 +2188,7 @@
         document.getElementById("url-input").value = "";
         document.getElementById("url-error").textContent = "";
         document.getElementById("modal").classList.add("open");
+        prefillModalFromClipboard();
         setTimeout(function () {
           document.getElementById("url-input").focus();
         }, 80);
@@ -1838,6 +2199,41 @@
       }
       function confirmAdd() {
         handleUrlInput(pendingSlot, document.getElementById("url-input").value);
+      }
+
+      function getNextEmptySlot() {
+        ensureTrailingEmpty();
+        for (var i = 0; i < tiles.length; i++) {
+          if (tiles[i] === null) return i;
+        }
+        return tiles.length - 1;
+      }
+
+      function findParseableUrl(text) {
+        var raw = (text || "").trim();
+        if (!raw) return null;
+        if (parseVideoUrl(raw)) return raw;
+        var matches = raw.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+        for (var i = 0; i < matches.length; i++) {
+          if (parseVideoUrl(matches[i])) return matches[i];
+        }
+        return null;
+      }
+
+      function prefillModalFromClipboard() {
+        var input = document.getElementById("url-input");
+        if (!input) return;
+        if (!navigator.clipboard || !navigator.clipboard.readText) return;
+        navigator.clipboard
+          .readText()
+          .then(function (txt) {
+            var found = findParseableUrl(txt);
+            if (!found) return;
+            input.value = found;
+            var err = document.getElementById("url-error");
+            if (err) err.textContent = "";
+          })
+          .catch(function () {});
       }
 
       function handleUrlInput(idx, raw) {
@@ -1859,6 +2255,10 @@
           return;
         }
         if (idx == null || idx < 0 || idx >= tiles.length) idx = tiles.length - 1;
+        var savedUrl = (raw || "").trim();
+        if (parsed.type === "youtube" || parsed.type === "kick") {
+          savedUrl = buildSourceUrl(parsed.type, parsed.id);
+        }
         tiles[idx] = {
           uid: "t" + nextTileUid++,
           id: parsed.id,
@@ -1871,13 +2271,31 @@
           currentTime: 0,
           duration: 0,
         };
+        saveHistoryEntry(savedUrl, parsed.type);
         ensureTrailingEmpty();
         closeModal();
         render();
       }
 
       document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape") closeModal();
+        if (e.ctrlKey && e.shiftKey && (e.key === "E" || e.key === "e")) {
+          e.preventDefault();
+          if (!document.getElementById("modal").classList.contains("open")) {
+            openModal(getNextEmptySlot());
+          }
+          return;
+        }
+        if (e.ctrlKey && e.shiftKey && (e.key === "H" || e.key === "h")) {
+          e.preventDefault();
+          if (!document.getElementById("history-modal").classList.contains("open")) {
+            openHistoryModal();
+          }
+          return;
+        }
+        if (e.key === "Escape") {
+          closeModal();
+          closeHistoryModal();
+        }
         if (
           e.key === "Enter" &&
           document.getElementById("modal").classList.contains("open")
@@ -1885,8 +2303,23 @@
           confirmAdd();
       });
 
+      document.getElementById("modal").addEventListener("click", function (e) {
+        if (e.target === this) closeModal();
+      });
+      document
+        .getElementById("history-modal")
+        .addEventListener("click", function (e) {
+          if (e.target === this) closeHistoryModal();
+        });
+
+      initHistoryDb();
+      updateHistoryButtonState();
       applyOsdMode();
       render();
     </script>
   </body>
 </html>
+
+
+
+
