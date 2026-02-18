@@ -127,6 +127,7 @@
         border: 1px solid var(--border);
         overflow: hidden;
         aspect-ratio: 16/9;
+        padding-bottom: 26px;
         transition: border-color 0.2s;
       }
       .tile:hover {
@@ -137,7 +138,7 @@
         position: absolute;
         inset: 0;
         width: 100%;
-        height: 100%;
+        height: calc(100% - 26px);
         border: none;
         pointer-events: auto;
       }
@@ -563,6 +564,7 @@
       .paused-overlay {
         position: absolute;
         inset: 0;
+        height: calc(100% - 26px);
         z-index: 8;
         display: none;
         align-items: center;
@@ -597,8 +599,8 @@
         padding: 0 6px;
         background: linear-gradient(
           0deg,
-          rgba(0, 0, 0, 0.88) 0%,
-          rgba(0, 0, 0, 0.72) 100%
+          rgba(0, 0, 0, 0.96) 0%,
+          rgba(0, 0, 0, 0.86) 100%
         );
       }
       .tile-footer-btn {
@@ -1247,6 +1249,9 @@
         div.dataset.tileType = tile.type;
         div.dataset.filter = tile.filter;
         div.style.order = idx;
+        div.onmouseenter = function () {
+          focusTilePlayer(div);
+        };
         div.classList.toggle("muted", !!tile.muted);
         div.classList.toggle("paused", !!tile.paused);
 
@@ -1326,12 +1331,16 @@
         div.dataset.videoId = tile.id;
         div.dataset.tileType = tile.type;
         div.dataset.filter = tile.filter;
+        div.addEventListener("mouseenter", function () {
+          focusTilePlayer(div);
+        });
 
         // iframe
         var iframe = document.createElement("iframe");
         iframe.src = buildEmbedUrl(tile.type, tile.id);
         iframe.allow = "autoplay; fullscreen";
         iframe.allowFullscreen = true;
+        iframe.tabIndex = 0;
         // For YouTube, enable API
         if (tile.type === "youtube") {
           (function (fr, t) {
@@ -1404,6 +1413,15 @@
         buildTileFooter(div, tile);
 
         return div;
+      }
+
+      function focusTilePlayer(tileEl) {
+        if (!tileEl) return;
+        var iframe = tileEl.querySelector("iframe");
+        if (!iframe) return;
+        try {
+          iframe.focus();
+        } catch (e) {}
       }
 
       // ── Bottom control bar ─────────────────────────────────────────────────────────
