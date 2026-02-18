@@ -641,19 +641,38 @@
       body:not(.custom-osd) .tile[data-tileType="kick"] .tile-controls {
         display: none !important;
       }
+      body:not(.custom-osd) .tile[data-tileType="twitch"] .tile-controls {
+        display: none !important;
+      }
       body:not(.custom-osd) .tile[data-tileType="kick"] .vol-col {
+        display: none !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="twitch"] .vol-col {
         display: none !important;
       }
       body:not(.custom-osd) .tile[data-tileType="kick"] .mute-badge {
         display: none !important;
       }
+      body:not(.custom-osd) .tile[data-tileType="twitch"] .mute-badge {
+        display: none !important;
+      }
       body:not(.custom-osd) .tile[data-tileType="kick"] .filter-badge {
+        display: none !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="twitch"] .filter-badge {
         display: none !important;
       }
       body:not(.custom-osd) .tile[data-tileType="kick"] .tile-label {
         display: none !important;
       }
+      body:not(.custom-osd) .tile[data-tileType="twitch"] .tile-label {
+        display: none !important;
+      }
       body:not(.custom-osd) .tile[data-tileType="kick"] .tile-clickzone {
+        display: none !important;
+        pointer-events: none !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="twitch"] .tile-clickzone {
         display: none !important;
         pointer-events: none !important;
       }
@@ -661,7 +680,14 @@
         display: none !important;
         pointer-events: none !important;
       }
+      body:not(.custom-osd) .tile[data-tileType="twitch"] .paused-overlay {
+        display: none !important;
+        pointer-events: none !important;
+      }
       body:not(.custom-osd) .tile[data-tileType="kick"] iframe {
+        pointer-events: auto !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="twitch"] iframe {
         pointer-events: auto !important;
       }
 
@@ -1033,8 +1059,8 @@
           letter-spacing: 1px;
         "
       >
-        SUPPORTS YOUTUBE, KICK &nbsp;&middot;&nbsp; CTRL + SHIFT + E -> ADD
-        &nbsp;&middot;&nbsp; CLIPBOARD URL AUTO-FILL
+        SUPPORTS YOUTUBE, KICK, TWITCH &nbsp;&middot;&nbsp; CTRL + SHIFT + E -> ADD
+        &nbsp;&middot;&nbsp; CTRL + SHIFT + H -> HISTORY &nbsp;&middot;&nbsp; CLIPBOARD URL AUTO-FILL
       </span>
     </div>
 
@@ -1075,7 +1101,7 @@
         <input
           type="text"
           id="url-input"
-          placeholder="YouTube or Kick URL (e.g., youtube.com/watch?v=... or kick.com/...)"
+          placeholder="YouTube, Kick, or Twitch URL"
           autocomplete="off"
         />
         <div
@@ -1095,7 +1121,9 @@
             youtube.com/watch?v=ID &nbsp;&middot;&nbsp; youtu.be/ID
             &nbsp;&middot;&nbsp; youtube.com/live/ID<br />
             <strong style="color: #5a7a9a">Kick:</strong> kick.com/channel
-            &nbsp;&middot;&nbsp; player.kick.com/channel
+            &nbsp;&middot;&nbsp; player.kick.com/channel<br />
+            <strong style="color: #5a7a9a">Twitch:</strong> twitch.tv/channel
+            &nbsp;&middot;&nbsp; player.twitch.tv/?channel=channel
           </div>
         </div>
         <div class="flex items-center gap-3 justify-end">
@@ -1171,6 +1199,7 @@
       function getPlatformLabel(type) {
         if (type === "youtube") return "YouTube";
         if (type === "kick") return "Kick";
+        if (type === "twitch") return "Twitch";
         if (!type) return "Unknown";
         return type.charAt(0).toUpperCase() + type.slice(1);
       }
@@ -1476,6 +1505,23 @@
         if (m) return { type: "youtube", id: m[1] };
         m = url.match(/youtube\.com\/(?:live|embed)\/([a-zA-Z0-9_-]{11})/);
         if (m) return { type: "youtube", id: m[1] };
+        // Twitch patterns
+        m = url.match(/player\.twitch\.tv\/\?[^\s]*channel=([a-zA-Z0-9_]+)/i);
+        if (m) return { type: "twitch", id: m[1] };
+        m = url.match(/(?:https?:\/\/)?(?:www\.)?twitch\.tv\/([a-zA-Z0-9_]+)/i);
+        if (m) {
+          var tw = (m[1] || "").toLowerCase();
+          var reserved = {
+            directory: true,
+            videos: true,
+            settings: true,
+            subscriptions: true,
+            drops: true,
+            wallet: true,
+            turbo: true,
+          };
+          if (!reserved[tw]) return { type: "twitch", id: m[1] };
+        }
         // Kick patterns
         m = url.match(/kick\.com\/([a-zA-Z0-9_-]+)/);
         if (m) return { type: "kick", id: m[1] };
@@ -1484,9 +1530,23 @@
         return null;
       }
 
+      function getTwitchParentDomain() {
+        var h = (window.location && window.location.hostname) || "";
+        return h || "localhost";
+      }
+
       function buildEmbedUrl(type, id) {
         if (type === "kick") {
           return "https://player.kick.com/" + id;
+        }
+        if (type === "twitch") {
+          return (
+            "https://player.twitch.tv/?channel=" +
+            encodeURIComponent(id) +
+            "&parent=" +
+            encodeURIComponent(getTwitchParentDomain()) +
+            "&autoplay=true&muted=true"
+          );
         }
         // YouTube
         return (
@@ -1523,8 +1583,8 @@
           grid.querySelectorAll(".tile, .tile-empty"),
         );
         cells.sort(function (a, b) {
-          var ao = parseInt(a.style.order || "0", 10);
-          var bo = parseInt(b.style.order || "0", 10);
+          var ao = parseInt(a.dataset.idx || "0", 10);
+          var bo = parseInt(b.dataset.idx || "0", 10);
           return ao - bo;
         });
         var count = cells.length;
@@ -1584,7 +1644,6 @@
         div.dataset.videoId = tile.id;
         div.dataset.tileType = tile.type;
         div.dataset.filter = tile.filter;
-        div.style.order = idx;
         div.onmouseenter = function () {
           focusTilePlayer(div);
         };
@@ -1605,7 +1664,10 @@
       function render() {
         var grid = document.getElementById("mosaic");
         ensureTrailingEmpty();
-        document.getElementById("tile-counter").textContent = getActiveCount();
+        var activeCount = getActiveCount();
+        document.getElementById("tile-counter").textContent = activeCount;
+        var layoutBtn = document.getElementById("layout-btn");
+        if (layoutBtn) layoutBtn.disabled = activeCount === 0;
 
         var existingNodes = grid.querySelectorAll(".tile, .tile-empty");
         var byUid = {};
@@ -1631,12 +1693,10 @@
               (reused.dataset.tileType || "youtube") === tileData.type;
             var node = sameVideo ? reused : makeLiveTile(tileData, i);
             if (sameVideo) syncTileShell(node, tileData, i);
-            else node.style.order = i;
             desiredTiles[tileData.uid] = true;
             if (!node.parentNode) grid.appendChild(node);
           } else {
             var empty = makeEmptyTile(i);
-            empty.style.order = i;
             grid.appendChild(empty);
           }
         }
@@ -1697,8 +1757,8 @@
               }, 900);
             });
           })(iframe, tile);
-        } else if (tile.type === "kick") {
-          // For Kick, just mark as live immediately
+        } else if (tile.type === "kick" || tile.type === "twitch") {
+          // For Kick/Twitch, just mark as live immediately
           tile.isLive = true;
         }
         div.appendChild(iframe);
@@ -1765,7 +1825,10 @@
         // ── Seek row (hidden for live and Kick) ──
         var seekRow = document.createElement("div");
         seekRow.className =
-          "seek-row" + (tile.isLive || tile.type === "kick" ? " hidden" : "");
+          "seek-row" +
+          (tile.isLive || tile.type === "kick" || tile.type === "twitch"
+            ? " hidden"
+            : "");
 
         var seekSlider = document.createElement("input");
         seekSlider.type = "range";
@@ -1843,15 +1906,17 @@
         pauseBtn.className = "ctrl-btn";
         pauseBtn.title =
           "Pause / Play" +
-          (tile.type === "kick" ? " (Kick streams do not support pause)" : "");
+          (tile.type === "kick" || tile.type === "twitch"
+            ? " (This stream does not support custom pause control)"
+            : "");
         pauseBtn.innerHTML = tile.paused ? SVG.play : SVG.pause;
-        if (tile.type === "kick") {
+        if (tile.type === "kick" || tile.type === "twitch") {
           pauseBtn.style.opacity = "0.5";
           pauseBtn.style.cursor = "not-allowed";
         }
         pauseBtn.addEventListener("click", function (e) {
           e.stopPropagation();
-          if (tile.type === "kick") return; // Kick doesn't support pause
+          if (tile.type === "kick" || tile.type === "twitch") return;
           tile.paused = !tile.paused;
           ytCmd(iframe, tile.paused ? "pauseVideo" : "playVideo");
           div.classList.toggle("paused", tile.paused);
@@ -1869,7 +1934,7 @@
           tile.isLive === true && tile.type === "youtube" ? "flex" : "none";
         liveBtn.addEventListener("click", function (e) {
           e.stopPropagation();
-          if (tile.type === "kick") return; // Kick streams always show live
+          if (tile.type === "kick" || tile.type === "twitch") return;
           tile.paused = false;
           div.classList.remove("paused");
           pauseBtn.innerHTML = SVG.pause;
@@ -1937,8 +2002,8 @@
         slider.value = tile.muted ? 0 : tile.volume;
         slider.title =
           "Volume" +
-          (tile.type === "kick"
-            ? " (Kick streams do not support volume control)"
+          (tile.type === "kick" || tile.type === "twitch"
+            ? " (This stream does not support custom volume control)"
             : "");
         // Gradient fill
         function updateVolGradient(val) {
@@ -1956,7 +2021,7 @@
         });
         slider.addEventListener("input", function (e) {
           e.stopPropagation();
-          if (tile.type === "kick") return; // Kick doesn't support volume control via API
+          if (tile.type === "kick" || tile.type === "twitch") return;
           var vol = parseInt(this.value);
           if (vol > 0) tile.volume = vol;
           ytCmd(iframe, "setVolume", [vol]);
@@ -2014,6 +2079,7 @@
 
       function buildSourceUrl(type, id) {
         if (type === "kick") return "https://kick.com/" + id;
+        if (type === "twitch") return "https://www.twitch.tv/" + id;
         return "https://www.youtube.com/watch?v=" + id;
       }
 
@@ -2251,12 +2317,16 @@
           }
           if (err)
             err.textContent =
-              "Unrecognized URL. Paste a valid YouTube or Kick link.";
+              "Unrecognized URL. Paste a valid YouTube, Kick, or Twitch link.";
           return;
         }
         if (idx == null || idx < 0 || idx >= tiles.length) idx = tiles.length - 1;
         var savedUrl = (raw || "").trim();
-        if (parsed.type === "youtube" || parsed.type === "kick") {
+        if (
+          parsed.type === "youtube" ||
+          parsed.type === "kick" ||
+          parsed.type === "twitch"
+        ) {
           savedUrl = buildSourceUrl(parsed.type, parsed.id);
         }
         tiles[idx] = {
@@ -2267,7 +2337,7 @@
           volume: 80,
           paused: false,
           filter: 0,
-          isLive: parsed.type === "kick" ? true : null,
+          isLive: parsed.type === "kick" || parsed.type === "twitch" ? true : null,
           currentTime: 0,
           duration: 0,
         };
