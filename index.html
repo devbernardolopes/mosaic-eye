@@ -57,6 +57,9 @@
       }
 
       .header-bar {
+        position: sticky;
+        top: 0;
+        z-index: 1200;
         border-bottom: 1px solid var(--border);
         background: linear-gradient(180deg, #0d1117 0%, var(--panel) 100%);
       }
@@ -636,6 +639,28 @@
         border-color: var(--amber);
         color: var(--amber);
       }
+      .tile-footer-hint {
+        font-family: "Share Tech Mono", monospace;
+        font-size: 9px;
+        color: #5a7a9a;
+        letter-spacing: 0.4px;
+        white-space: nowrap;
+      }
+      .tile-footer-spacer {
+        flex: 1 1 auto;
+      }
+      .tile-footer-btn.delete {
+        background: #5b1f24;
+        border-color: #7f1d1d;
+        color: #fecaca;
+        font-weight: 700;
+        padding: 0 7px;
+      }
+      .tile-footer-btn.delete:hover {
+        background: #7f1d1d;
+        border-color: #991b1b;
+        color: #fee2e2;
+      }
 
       /* Kick stream overrides (use native player controls) */
       body:not(.custom-osd) .tile[data-tileType="kick"] .tile-controls {
@@ -1013,6 +1038,14 @@
         class="flex items-center gap-2 flex-wrap"
         style="position: relative; z-index: 2"
       >
+        <script
+          type="text/javascript"
+          src="https://storage.ko-fi.com/cdn/widget/Widget_2.js"
+        ></script>
+        <script type="text/javascript">
+          kofiwidget2.init("Support me on Ko-fi", "#72a4f2", "V7V21OVINK");
+          kofiwidget2.draw();
+        </script>
         <button class="hdr-btn" id="layout-btn" onclick="cycleLayout()">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
             <rect x="1" y="1" width="6" height="6" rx="1" opacity=".7" />
@@ -1175,6 +1208,7 @@
       var customOsdEnabled = false;
       var nextTileUid = 1;
       var db = null;
+      var pendingTitleLookup = {};
 
       var LAYOUTS = {
         1: [["1/-1"]],
@@ -1227,13 +1261,52 @@
         }
       }
 
-      async function saveHistoryEntry(url, type) {
+      async function resolveVideoTitle(type, id, sourceUrl) {
+        try {
+          var reqUrl = null;
+          if (type === "youtube" && id) {
+            reqUrl =
+              "https://www.youtube.com/oembed?format=json&url=" +
+              encodeURIComponent("https://www.youtube.com/watch?v=" + id);
+          } else if (type === "twitch" && id) {
+            reqUrl =
+              "https://www.twitch.tv/oembed?url=" +
+              encodeURIComponent("https://www.twitch.tv/" + id);
+          } else if (sourceUrl && /^https?:\/\//i.test(sourceUrl)) {
+            reqUrl = null;
+          }
+          if (!reqUrl) return null;
+          var res = await fetch(reqUrl);
+          if (!res.ok) return null;
+          var data = await res.json();
+          if (!data || !data.title) return null;
+          return ("" + data.title).trim() || null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      async function saveHistoryEntry(url, type, sourceId) {
         if (!db || !url) return;
         try {
-          await db.history.add({
+          var entryId = await db.history.add({
             url: url,
             type: type,
             addedAt: Date.now(),
+            title: null,
+          });
+          resolveVideoTitle(type, sourceId, url).then(async function (title) {
+            if (!title || !db) return;
+            try {
+              await db.history.update(entryId, { title: title });
+              if (
+                document
+                  .getElementById("history-modal")
+                  .classList.contains("open")
+              ) {
+                renderHistoryModal();
+              }
+            } catch (e) {}
           });
           updateHistoryButtonState();
         } catch (e) {}
@@ -1272,15 +1345,44 @@
         list.innerHTML = "";
         for (var i = 0; i < entries.length; i++) {
           var entry = entries[i];
+          if (!entry.title && !pendingTitleLookup[entry.id]) {
+            (function (it) {
+              var parsed = parseVideoUrl(it.url || "");
+              if (!parsed) return;
+              pendingTitleLookup[it.id] = true;
+              resolveVideoTitle(parsed.type, parsed.id, it.url).then(
+                async function (title) {
+                  delete pendingTitleLookup[it.id];
+                  if (!title || !db) return;
+                  try {
+                    await db.history.update(it.id, { title: title });
+                    if (
+                      document
+                        .getElementById("history-modal")
+                        .classList.contains("open")
+                    ) {
+                      renderHistoryModal();
+                    }
+                  } catch (e) {}
+                },
+              );
+            })(entry);
+          }
           var row = document.createElement("div");
           row.className = "history-row";
 
           var urlBtn = document.createElement("button");
           urlBtn.className = "history-url-btn";
-          urlBtn.title = entry.url;
+          urlBtn.title = (entry.title ? entry.title + "\n" : "") + entry.url;
           var urlText = document.createElement("span");
           urlText.className = "history-url-btn-text";
-          urlText.textContent = truncateForDisplay(entry.url, 140);
+          var rowLabel = entry.title
+            ? entry.title + " · " + entry.url
+            : entry.url;
+          urlText.textContent = truncateForDisplay(
+            rowLabel,
+            entry.title ? 120 : 140,
+          );
           urlBtn.appendChild(urlText);
           urlBtn.addEventListener(
             "click",
@@ -1359,6 +1461,8 @@
           '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="6" y="2.5" width="7.5" height="9.5" rx="1.5"/><rect x="2.5" y="6" width="7.5" height="7.5" rx="1.5"/></svg>',
         filter:
           '<svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="5" cy="5" r="3.5"/><circle cx="9" cy="9" r="3.5"/></svg>',
+        refresh:
+          '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13 8a5 5 0 10-1.4 3.45"/><path d="M13 3v4h-4"/></svg>',
         liveDot:
           '<svg width="8" height="8" viewBox="0 0 8 8" fill="#ef4444"><circle cx="4" cy="4" r="3" opacity=".3"/><circle cx="4" cy="4" r="2"/></svg>',
         volOn:
@@ -1577,14 +1681,47 @@
         }
       }
 
+      function getLayoutVariants(count) {
+        if (LAYOUTS[count]) return LAYOUTS[count];
+        if (count <= 1) return [["1/-1"]];
+
+        var variants = [];
+        var seen = {};
+
+        function addVariant(spans) {
+          var key = spans.join("|");
+          if (seen[key]) return;
+          seen[key] = true;
+          variants.push(spans);
+        }
+
+        var base = [];
+        for (var i = 0; i < count; i++) base.push("auto");
+        addVariant(base.slice());
+
+        var v2 = base.slice();
+        for (var j = 0; j < count; j += 2) v2[j] = "1/-1";
+        addVariant(v2);
+
+        var v3 = base.slice();
+        for (var k = 1; k < count; k += 3) v3[k] = "1/-1";
+        addVariant(v3);
+
+        var v4 = base.slice();
+        v4[count - 1] = "1/-1";
+        addVariant(v4);
+
+        return variants;
+      }
+
       function applyLayout() {
         var grid = document.getElementById("mosaic");
         var cells = Array.prototype.slice.call(
           grid.querySelectorAll(".tile, .tile-empty"),
         );
         cells.sort(function (a, b) {
-          var ao = parseInt(a.dataset.idx || "0", 10);
-          var bo = parseInt(b.dataset.idx || "0", 10);
+          var ao = parseInt(a.style.order || "0", 10);
+          var bo = parseInt(b.style.order || "0", 10);
           return ao - bo;
         });
         var count = cells.length;
@@ -1592,9 +1729,7 @@
           grid.style.gridTemplateColumns = "1fr";
           return;
         }
-        var fallback = [];
-        for (var fi = 0; fi < count; fi++) fallback.push("auto");
-        var variants = LAYOUTS[count] || [fallback];
+        var variants = getLayoutVariants(count);
         var v = layoutVariant % variants.length;
         var spans = variants[v];
         if (count === 1) {
@@ -1644,6 +1779,7 @@
         div.dataset.videoId = tile.id;
         div.dataset.tileType = tile.type;
         div.dataset.filter = tile.filter;
+        div.style.order = idx;
         div.onmouseenter = function () {
           focusTilePlayer(div);
         };
@@ -1681,31 +1817,29 @@
           }
         }
 
-        var desiredTiles = {};
+        var keepByUid = {};
         for (var i = 0; i < tiles.length; i++) {
           var tileData = tiles[i];
           if (tileData) {
             if (!tileData.uid) tileData.uid = "t" + nextTileUid++;
             var reused = byUid[tileData.uid];
-            var sameVideo =
-              reused &&
-              reused.dataset.videoId === tileData.id &&
-              (reused.dataset.tileType || "youtube") === tileData.type;
-            var node = sameVideo ? reused : makeLiveTile(tileData, i);
-            if (sameVideo) syncTileShell(node, tileData, i);
-            desiredTiles[tileData.uid] = true;
+            var node = reused || makeLiveTile(tileData, i);
+            syncTileShell(node, tileData, i);
+            keepByUid[tileData.uid] = true;
             if (!node.parentNode) grid.appendChild(node);
           } else {
             var empty = makeEmptyTile(i);
+            empty.style.order = i;
             grid.appendChild(empty);
           }
         }
 
         for (var key in byUid) {
-          if (!desiredTiles[key] && byUid[key] && byUid[key].parentNode === grid) {
+          if (!keepByUid[key] && byUid[key] && byUid[key].parentNode === grid) {
             grid.removeChild(byUid[key]);
           }
         }
+
         for (var oi = 0; oi < oldEmpties.length; oi++) {
           var oldEmpty = oldEmpties[oi];
           if (oldEmpty.parentNode === grid) grid.removeChild(oldEmpty);
@@ -2124,6 +2258,25 @@
         }, 2200);
       }
 
+      function refreshTile(liveIdx, tileEl) {
+        var tile = tiles[liveIdx];
+        if (!tile || !tileEl) return;
+        var iframe = tileEl.querySelector("iframe");
+        if (!iframe) return;
+        var freshSrc = buildEmbedUrl(tile.type, tile.id);
+        if (tile.type === "youtube") {
+          iframe.src = "";
+          setTimeout(function () {
+            iframe.src = freshSrc;
+          }, 60);
+          return;
+        }
+        iframe.src = "";
+        setTimeout(function () {
+          iframe.src = freshSrc;
+        }, 60);
+      }
+
       function buildTileFooter(div, tile) {
         var footer = document.createElement("div");
         footer.className = "tile-footer";
@@ -2148,10 +2301,27 @@
             });
         });
 
+        var refreshBtn = document.createElement("button");
+        refreshBtn.className = "tile-footer-btn";
+        refreshBtn.type = "button";
+        refreshBtn.innerHTML = SVG.refresh;
+        refreshBtn.title = "Refresh this video";
+        refreshBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var liveIdx = parseInt(div.dataset.idx, 10);
+          refreshTile(liveIdx, div);
+        });
+
+        var refreshHint = document.createElement("span");
+        refreshHint.className = "tile-footer-hint";
+        refreshHint.textContent = "<- video issues? Try refreshing";
+        var spacer = document.createElement("span");
+        spacer.className = "tile-footer-spacer";
+
         var removeBtn = document.createElement("button");
-        removeBtn.className = "tile-footer-btn";
+        removeBtn.className = "tile-footer-btn delete";
         removeBtn.type = "button";
-        removeBtn.textContent = "REMOVE";
+        removeBtn.textContent = "X";
         removeBtn.title = "Remove tile";
         removeBtn.addEventListener("click", function (e) {
           e.stopPropagation();
@@ -2159,6 +2329,9 @@
           removeTile(liveIdx);
         });
 
+        footer.appendChild(refreshBtn);
+        footer.appendChild(refreshHint);
+        footer.appendChild(spacer);
         footer.appendChild(copyBtn);
         footer.appendChild(removeBtn);
         div.appendChild(footer);
@@ -2341,7 +2514,7 @@
           currentTime: 0,
           duration: 0,
         };
-        saveHistoryEntry(savedUrl, parsed.type);
+        saveHistoryEntry(savedUrl, parsed.type, parsed.id);
         ensureTrailingEmpty();
         closeModal();
         render();
