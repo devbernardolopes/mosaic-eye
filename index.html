@@ -139,6 +139,9 @@
         width: 100%;
         height: 100%;
         border: none;
+        pointer-events: auto;
+      }
+      body.custom-osd .tile iframe {
         pointer-events: none;
       }
       .tile[data-filter="0"] iframe {
@@ -159,11 +162,22 @@
       .tile[data-filter="5"] iframe {
         filter: hue-rotate(90deg) saturate(1.5);
       }
+      body:not(.custom-osd) .tile-controls,
+      body:not(.custom-osd) .vol-col,
+      body:not(.custom-osd) .tile-topright,
+      body:not(.custom-osd) .mute-badge,
+      body:not(.custom-osd) .filter-badge,
+      body:not(.custom-osd) .tile-label,
+      body:not(.custom-osd) .tile-clickzone,
+      body:not(.custom-osd) .paused-overlay {
+        display: none !important;
+        pointer-events: none !important;
+      }
 
       /* Click zone covers everything above the bottom controls */
       .tile-clickzone {
         position: absolute;
-        inset: 0 46px 54px 0;
+        inset: 0 46px 80px 0;
         z-index: 10;
         cursor: pointer;
       }
@@ -175,7 +189,7 @@
     ══════════════════════════════════════════ */
       .tile-controls {
         position: absolute;
-        bottom: 0;
+        bottom: 26px;
         left: 0;
         right: 46px;
         z-index: 20;
@@ -342,7 +356,7 @@
         flex-direction: column;
         align-items: center;
         justify-content: flex-end;
-        padding-bottom: 6px;
+        padding-bottom: 34px;
         gap: 6px;
         opacity: 0;
         transition: opacity 0.2s;
@@ -535,7 +549,7 @@
       /* ── Channel label ── */
       .tile-label {
         position: absolute;
-        bottom: 58px;
+        bottom: 84px;
         left: 10px;
         font-family: "Share Tech Mono", monospace;
         font-size: 10px;
@@ -568,6 +582,75 @@
         align-items: center;
         justify-content: center;
         background: rgba(0, 0, 0, 0.5);
+      }
+      .tile-footer {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 26px;
+        z-index: 28;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        padding: 0 6px;
+        background: linear-gradient(
+          0deg,
+          rgba(0, 0, 0, 0.88) 0%,
+          rgba(0, 0, 0, 0.72) 100%
+        );
+      }
+      .tile-footer-btn {
+        height: 20px;
+        min-width: 20px;
+        padding: 0 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        background: rgba(10, 12, 15, 0.85);
+        border: 1px solid #2e3d50;
+        color: #8fa3b8;
+        font-family: "Share Tech Mono", monospace;
+        font-size: 9px;
+        letter-spacing: 0.8px;
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          color 0.15s;
+      }
+      .tile-footer-btn:hover {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+
+      /* Kick stream overrides (use native player controls) */
+      body:not(.custom-osd) .tile[data-tileType="kick"] .tile-controls {
+        display: none !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="kick"] .vol-col {
+        display: none !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="kick"] .mute-badge {
+        display: none !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="kick"] .filter-badge {
+        display: none !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="kick"] .tile-label {
+        display: none !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="kick"] .tile-clickzone {
+        display: none !important;
+        pointer-events: none !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="kick"] .paused-overlay {
+        display: none !important;
+        pointer-events: none !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="kick"] iframe {
+        pointer-events: auto !important;
       }
 
       /* ── Empty tile ── */
@@ -770,9 +853,17 @@
           </svg>
           LAYOUT
         </button>
+        <button class="hdr-btn" id="osd-btn" onclick="toggleOsdMode()">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="2" y="3" width="12" height="2" rx="1" />
+            <rect x="2" y="7" width="12" height="2" rx="1" />
+            <rect x="2" y="11" width="12" height="2" rx="1" />
+          </svg>
+          <span id="osd-btn-label">NATIVE CTRL</span>
+        </button>
         <span class="mono text-xs" style="color: #2e3d50">|</span>
         <span class="mono text-xs" id="tile-counter" style="color: #3a4d60"
-          >0 / 4</span
+          >0</span
         >
         <span class="mono text-xs" style="color: #2e3d50">|</span>
         <span class="mono text-xs" id="clock" style="color: #3a4d60"></span>
@@ -829,11 +920,11 @@
             &#x2715;
           </button>
         </div>
-        <span class="label-tag">YOUTUBE URL</span>
+        <span class="label-tag">VIDEO URL</span>
         <input
           type="text"
           id="url-input"
-          placeholder="https://youtube.com/watch?v=...  or  youtu.be/..."
+          placeholder="YouTube or Kick URL (e.g., youtube.com/watch?v=... or kick.com/...)"
           autocomplete="off"
         />
         <div
@@ -849,8 +940,11 @@
             class="mono"
             style="font-size: 11px; color: #3a4d60; line-height: 2"
           >
-            youtube.com/watch?v=ID &nbsp;&middot;&nbsp; youtu.be/ID<br />
-            youtube.com/live/ID &nbsp;&middot;&nbsp; youtube.com/embed/ID
+            <strong style="color: #5a7a9a">YouTube:</strong>
+            youtube.com/watch?v=ID &nbsp;&middot;&nbsp; youtu.be/ID
+            &nbsp;&middot;&nbsp; youtube.com/live/ID<br />
+            <strong style="color: #5a7a9a">Kick:</strong> kick.com/channel
+            &nbsp;&middot;&nbsp; player.kick.com/channel
           </div>
         </div>
         <div class="flex items-center gap-3 justify-end">
@@ -865,10 +959,11 @@
       //  STATE
       //  tile = { id, muted, volume, paused, filter, isLive, currentTime, duration }
       // ═══════════════════════════════════════════════════════════════════════════════
-      var MAX = 4;
-      var tiles = [null, null, null, null];
+      var tiles = [null];
       var pendingSlot = null;
       var layoutVariant = 0;
+      var customOsdEnabled = false;
+      var nextTileUid = 1;
 
       var LAYOUTS = {
         1: [["1/-1"]],
@@ -1036,16 +1131,26 @@
       function parseVideoUrl(raw) {
         var url = (raw || "").trim(),
           m;
+        // YouTube patterns
         m = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
-        if (m) return m[1];
+        if (m) return { type: "youtube", id: m[1] };
         m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
-        if (m) return m[1];
+        if (m) return { type: "youtube", id: m[1] };
         m = url.match(/youtube\.com\/(?:live|embed)\/([a-zA-Z0-9_-]{11})/);
-        if (m) return m[1];
+        if (m) return { type: "youtube", id: m[1] };
+        // Kick patterns
+        m = url.match(/kick\.com\/([a-zA-Z0-9_-]+)/);
+        if (m) return { type: "kick", id: m[1] };
+        m = url.match(/player\.kick\.com\/([a-zA-Z0-9_-]+)/);
+        if (m) return { type: "kick", id: m[1] };
         return null;
       }
 
-      function buildEmbedUrl(id) {
+      function buildEmbedUrl(type, id) {
+        if (type === "kick") {
+          return "https://player.kick.com/" + id;
+        }
+        // YouTube
         return (
           "https://www.youtube-nocookie.com/embed/" +
           id +
@@ -1058,68 +1163,153 @@
       // ── Layout ─────────────────────────────────────────────────────────────────────
       function getActiveCount() {
         return tiles.filter(function (t) {
-          return t !== null;
+          return !!t;
         }).length;
+      }
+
+      function ensureTrailingEmpty() {
+        if (!tiles.length) tiles.push(null);
+        if (tiles[tiles.length - 1] !== null) tiles.push(null);
+        while (
+          tiles.length > 1 &&
+          tiles[tiles.length - 1] === null &&
+          tiles[tiles.length - 2] === null
+        ) {
+          tiles.pop();
+        }
       }
 
       function applyLayout() {
         var grid = document.getElementById("mosaic");
-        var count = getActiveCount();
+        var cells = Array.prototype.slice.call(
+          grid.querySelectorAll(".tile, .tile-empty"),
+        );
+        cells.sort(function (a, b) {
+          var ao = parseInt(a.style.order || "0", 10);
+          var bo = parseInt(b.style.order || "0", 10);
+          return ao - bo;
+        });
+        var count = cells.length;
         if (!count) {
           grid.style.gridTemplateColumns = "1fr";
           return;
         }
-        var variants = LAYOUTS[count];
+        var fallback = [];
+        for (var fi = 0; fi < count; fi++) fallback.push("auto");
+        var variants = LAYOUTS[count] || [fallback];
         var v = layoutVariant % variants.length;
         var spans = variants[v];
-        grid.style.gridTemplateColumns = count === 1 ? "1fr" : "1fr 1fr";
-        var cells = grid.querySelectorAll(".tile, .tile-empty");
+        if (count === 1) {
+          grid.style.gridTemplateColumns = "minmax(320px, min(100%, 860px))";
+          grid.style.justifyContent = "center";
+        } else {
+          grid.style.gridTemplateColumns = "1fr 1fr";
+          grid.style.justifyContent = "stretch";
+        }
         for (var i = 0; i < cells.length; i++)
           cells[i].style.gridColumn = spans[i] || "auto";
         var btn = document.getElementById("layout-btn");
         if (variants.length > 1) {
           btn.classList.add("active");
           btn.title =
-            "Layout " + (v + 1) + " / " + variants.length + " — click to cycle";
+            "Layout " + (v + 1) + " / " + variants.length + " - click to cycle";
         } else {
           btn.classList.remove("active");
           btn.title = "Cycle layout";
         }
       }
+
       function cycleLayout() {
         layoutVariant++;
         applyLayout();
       }
+      function applyOsdMode() {
+        document.body.classList.toggle("custom-osd", customOsdEnabled);
+        var btn = document.getElementById("osd-btn");
+        var lbl = document.getElementById("osd-btn-label");
+        if (!btn || !lbl) return;
+        btn.classList.toggle("active", customOsdEnabled);
+        lbl.textContent = customOsdEnabled ? "CUSTOM OSD" : "NATIVE CTRL";
+        btn.title = customOsdEnabled
+          ? "Custom OSD enabled - click to use native controls"
+          : "Native controls enabled - click to use custom OSD";
+      }
+      function toggleOsdMode() {
+        customOsdEnabled = !customOsdEnabled;
+        applyOsdMode();
+      }
 
-      // ── Smart render ───────────────────────────────────────────────────────────────
+      
+      function syncTileShell(div, tile, idx) {
+        div.dataset.idx = idx;
+        div.dataset.key = tile.uid;
+        div.dataset.videoId = tile.id;
+        div.dataset.tileType = tile.type;
+        div.dataset.filter = tile.filter;
+        div.style.order = idx;
+        div.classList.toggle("muted", !!tile.muted);
+        div.classList.toggle("paused", !!tile.paused);
+
+        var lbl = div.querySelector(".tile-label");
+        if (lbl) lbl.textContent = "CH-0" + (idx + 1);
+
+        var fb = div.querySelector(".filter-badge");
+        if (fb) fb.textContent = FILTER_NAMES[tile.filter];
+
+        var mb = div.querySelector(".mute-badge");
+        if (mb) renderMuteBadge(mb, tile.muted);
+      }
+
+// ── Smart render ───────────────────────────────────────────────────────────────
       function render() {
         var grid = document.getElementById("mosaic");
-        document.getElementById("tile-counter").textContent =
-          getActiveCount() + " / " + MAX;
+        ensureTrailingEmpty();
+        document.getElementById("tile-counter").textContent = getActiveCount();
 
-        for (var i = 0; i < MAX; i++) {
-          var existing = grid.querySelector('[data-idx="' + i + '"]');
-          var tileData = tiles[i];
-
-          if (tileData) {
-            if (existing && existing.classList.contains("tile")) continue; // already live, skip
-            var newEl = makeLiveTile(tileData, i);
-            if (existing) grid.replaceChild(newEl, existing);
-            else {
-              var after = grid.querySelector('[data-idx="' + (i - 1) + '"]');
-              if (after && after.nextSibling)
-                grid.insertBefore(newEl, after.nextSibling);
-              else if (after) grid.appendChild(newEl);
-              else grid.insertBefore(newEl, grid.firstChild);
-            }
-          } else {
-            if (!existing) {
-              grid.appendChild(makeEmptyTile(i));
-            } else if (existing.classList.contains("tile")) {
-              grid.replaceChild(makeEmptyTile(i), existing);
-            }
+        var existingNodes = grid.querySelectorAll(".tile, .tile-empty");
+        var byUid = {};
+        var oldEmpties = [];
+        for (var ei = 0; ei < existingNodes.length; ei++) {
+          var el = existingNodes[ei];
+          if (el.classList.contains("tile") && el.dataset.key) {
+            byUid[el.dataset.key] = el;
+          } else if (el.classList.contains("tile-empty")) {
+            oldEmpties.push(el);
           }
         }
+
+        var desiredTiles = {};
+        for (var i = 0; i < tiles.length; i++) {
+          var tileData = tiles[i];
+          if (tileData) {
+            if (!tileData.uid) tileData.uid = "t" + nextTileUid++;
+            var reused = byUid[tileData.uid];
+            var sameVideo =
+              reused &&
+              reused.dataset.videoId === tileData.id &&
+              (reused.dataset.tileType || "youtube") === tileData.type;
+            var node = sameVideo ? reused : makeLiveTile(tileData, i);
+            if (sameVideo) syncTileShell(node, tileData, i);
+            else node.style.order = i;
+            desiredTiles[tileData.uid] = true;
+            if (!node.parentNode) grid.appendChild(node);
+          } else {
+            var empty = makeEmptyTile(i);
+            empty.style.order = i;
+            grid.appendChild(empty);
+          }
+        }
+
+        for (var key in byUid) {
+          if (!desiredTiles[key] && byUid[key] && byUid[key].parentNode === grid) {
+            grid.removeChild(byUid[key]);
+          }
+        }
+        for (var oi = 0; oi < oldEmpties.length; oi++) {
+          var oldEmpty = oldEmpties[oi];
+          if (oldEmpty.parentNode === grid) grid.removeChild(oldEmpty);
+        }
+
         layoutVariant = 0;
         applyLayout();
       }
@@ -1132,31 +1322,40 @@
           (tile.muted ? " muted" : "") +
           (tile.paused ? " paused" : "");
         div.dataset.idx = idx;
+        div.dataset.key = tile.uid;
+        div.dataset.videoId = tile.id;
+        div.dataset.tileType = tile.type;
         div.dataset.filter = tile.filter;
 
         // iframe
         var iframe = document.createElement("iframe");
-        iframe.src = buildEmbedUrl(tile.id);
+        iframe.src = buildEmbedUrl(tile.type, tile.id);
         iframe.allow = "autoplay; fullscreen";
         iframe.allowFullscreen = true;
-        (function (fr, t) {
-          fr.addEventListener("load", function () {
-            setTimeout(function () {
-              // Subscribe to player events (required for infoDelivery)
-              fr.contentWindow.postMessage(
-                JSON.stringify({
-                  event: "listening",
-                  id: 1,
-                  channel: "widget",
-                }),
-                "*",
-              );
-              ytCmd(fr, "setVolume", [t.volume]);
-              ytCmd(fr, t.muted ? "mute" : "unMute");
-              if (t.paused) ytCmd(fr, "pauseVideo");
-            }, 900);
-          });
-        })(iframe, tile);
+        // For YouTube, enable API
+        if (tile.type === "youtube") {
+          (function (fr, t) {
+            fr.addEventListener("load", function () {
+              setTimeout(function () {
+                // Subscribe to player events (required for infoDelivery)
+                fr.contentWindow.postMessage(
+                  JSON.stringify({
+                    event: "listening",
+                    id: 1,
+                    channel: "widget",
+                  }),
+                  "*",
+                );
+                ytCmd(fr, "setVolume", [t.volume]);
+                ytCmd(fr, t.muted ? "mute" : "unMute");
+                if (t.paused) ytCmd(fr, "pauseVideo");
+              }, 900);
+            });
+          })(iframe, tile);
+        } else if (tile.type === "kick") {
+          // For Kick, just mark as live immediately
+          tile.isLive = true;
+        }
         div.appendChild(iframe);
 
         // Paused overlay
@@ -1168,11 +1367,10 @@
         // Click zone (mute toggle — excludes right vol column and bottom controls)
         var cz = document.createElement("div");
         cz.className = "tile-clickzone";
-        (function (i) {
-          cz.addEventListener("click", function (e) {
-            handleTileClick(i, e);
-          });
-        })(idx);
+        cz.addEventListener("click", function (e) {
+          var liveIdx = parseInt(div.dataset.idx, 10);
+          handleTileClick(liveIdx, e);
+        });
         div.appendChild(cz);
 
         // Mute badge
@@ -1193,22 +1391,6 @@
         lbl.textContent = "CH-0" + (idx + 1);
         div.appendChild(lbl);
 
-        // Remove button
-        var tr = document.createElement("div");
-        tr.className = "tile-topright";
-        var rm = document.createElement("div");
-        rm.className = "tile-remove";
-        rm.innerHTML = SVG.close;
-        rm.title = "Remove";
-        (function (i) {
-          rm.addEventListener("click", function (e) {
-            e.stopPropagation();
-            removeTile(i);
-          });
-        })(idx);
-        tr.appendChild(rm);
-        div.appendChild(tr);
-
         // Bottom controls bar
         var bar = document.createElement("div");
         bar.className = "tile-controls";
@@ -1218,14 +1400,18 @@
         // Vertical volume column (right side)
         buildVolCol(div, iframe, tile);
 
+        // Footer actions
+        buildTileFooter(div, tile);
+
         return div;
       }
 
       // ── Bottom control bar ─────────────────────────────────────────────────────────
       function buildControlBar(bar, div, iframe, tile, idx) {
-        // ── Seek row (hidden for live) ──
+        // ── Seek row (hidden for live and Kick) ──
         var seekRow = document.createElement("div");
-        seekRow.className = "seek-row" + (tile.isLive ? " hidden" : "");
+        seekRow.className =
+          "seek-row" + (tile.isLive || tile.type === "kick" ? " hidden" : "");
 
         var seekSlider = document.createElement("input");
         seekSlider.type = "range";
@@ -1298,13 +1484,20 @@
         var btnRow = document.createElement("div");
         btnRow.className = "btn-row";
 
-        // Pause/play
+        // Pause/play (YouTube only)
         var pauseBtn = document.createElement("button");
         pauseBtn.className = "ctrl-btn";
-        pauseBtn.title = "Pause / Play";
+        pauseBtn.title =
+          "Pause / Play" +
+          (tile.type === "kick" ? " (Kick streams do not support pause)" : "");
         pauseBtn.innerHTML = tile.paused ? SVG.play : SVG.pause;
+        if (tile.type === "kick") {
+          pauseBtn.style.opacity = "0.5";
+          pauseBtn.style.cursor = "not-allowed";
+        }
         pauseBtn.addEventListener("click", function (e) {
           e.stopPropagation();
+          if (tile.type === "kick") return; // Kick doesn't support pause
           tile.paused = !tile.paused;
           ytCmd(iframe, tile.paused ? "pauseVideo" : "playVideo");
           div.classList.toggle("paused", tile.paused);
@@ -1313,18 +1506,20 @@
         });
         btnRow.appendChild(pauseBtn);
 
-        // Live sync button
+        // Live sync button (YouTube only)
         var liveBtn = document.createElement("button");
         liveBtn.className = "ctrl-btn live-sync";
         liveBtn.title = "Jump to live edge";
         liveBtn.innerHTML = SVG.liveDot + "&thinsp;LIVE";
-        liveBtn.style.display = tile.isLive === true ? "flex" : "none";
+        liveBtn.style.display =
+          tile.isLive === true && tile.type === "youtube" ? "flex" : "none";
         liveBtn.addEventListener("click", function (e) {
           e.stopPropagation();
+          if (tile.type === "kick") return; // Kick streams always show live
           tile.paused = false;
           div.classList.remove("paused");
           pauseBtn.innerHTML = SVG.pause;
-          var freshSrc = buildEmbedUrl(tile.id);
+          var freshSrc = buildEmbedUrl(tile.type, tile.id);
           iframe.src = "";
           setTimeout(function () {
             iframe.src = freshSrc;
@@ -1386,7 +1581,11 @@
         slider.max = 100;
         slider.step = 1;
         slider.value = tile.muted ? 0 : tile.volume;
-        slider.title = "Volume";
+        slider.title =
+          "Volume" +
+          (tile.type === "kick"
+            ? " (Kick streams do not support volume control)"
+            : "");
         // Gradient fill
         function updateVolGradient(val) {
           slider.style.background =
@@ -1403,6 +1602,7 @@
         });
         slider.addEventListener("input", function (e) {
           e.stopPropagation();
+          if (tile.type === "kick") return; // Kick doesn't support volume control via API
           var vol = parseInt(this.value);
           if (vol > 0) tile.volume = vol;
           ytCmd(iframe, "setVolume", [vol]);
@@ -1456,6 +1656,68 @@
         div._volIcon = muteBtn;
         div._volLabel = volLabel;
         div._volGradient = updateVolGradient;
+      }
+
+      function buildSourceUrl(type, id) {
+        if (type === "kick") return "https://kick.com/" + id;
+        return "https://www.youtube.com/watch?v=" + id;
+      }
+
+      function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          return navigator.clipboard.writeText(text);
+        }
+        return new Promise(function (resolve, reject) {
+          try {
+            var ta = document.createElement("textarea");
+            ta.value = text;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+            if (ok) resolve();
+            else reject(new Error("copy failed"));
+          } catch (err) {
+            reject(err);
+          }
+        });
+      }
+
+      function buildTileFooter(div, tile) {
+        var footer = document.createElement("div");
+        footer.className = "tile-footer";
+
+        var copyBtn = document.createElement("button");
+        copyBtn.className = "tile-footer-btn";
+        copyBtn.type = "button";
+        copyBtn.textContent = "COPY URL";
+        copyBtn.title = "Copy source URL";
+        copyBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var liveIdx = parseInt(div.dataset.idx, 10);
+          var t = tiles[liveIdx];
+          if (!t) return;
+          var url = buildSourceUrl(t.type, t.id);
+          copyText(url).catch(function () {});
+        });
+
+        var removeBtn = document.createElement("button");
+        removeBtn.className = "tile-footer-btn";
+        removeBtn.type = "button";
+        removeBtn.textContent = "REMOVE";
+        removeBtn.title = "Remove tile";
+        removeBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var liveIdx = parseInt(div.dataset.idx, 10);
+          removeTile(liveIdx);
+        });
+
+        footer.appendChild(copyBtn);
+        footer.appendChild(removeBtn);
+        div.appendChild(footer);
       }
 
       // ── Mute badge ─────────────────────────────────────────────────────────────────
@@ -1536,7 +1798,9 @@
 
       // ── Remove ─────────────────────────────────────────────────────────────────────
       function removeTile(idx) {
-        tiles[idx] = null;
+        if (idx < 0 || idx >= tiles.length) return;
+        tiles.splice(idx, 1);
+        ensureTrailingEmpty();
         render();
       }
 
@@ -1557,9 +1821,10 @@
       function confirmAdd() {
         handleUrlInput(pendingSlot, document.getElementById("url-input").value);
       }
+
       function handleUrlInput(idx, raw) {
-        var id = parseVideoUrl(raw);
-        if (!id) {
+        var parsed = parseVideoUrl(raw);
+        if (!parsed) {
           var inp = document.getElementById("url-input");
           var err = document.getElementById("url-error");
           if (inp) {
@@ -1571,19 +1836,24 @@
             }, 400);
           }
           if (err)
-            err.textContent = "Unrecognized URL. Paste a valid YouTube link.";
+            err.textContent =
+              "Unrecognized URL. Paste a valid YouTube or Kick link.";
           return;
         }
+        if (idx == null || idx < 0 || idx >= tiles.length) idx = tiles.length - 1;
         tiles[idx] = {
-          id: id,
+          uid: "t" + nextTileUid++,
+          id: parsed.id,
+          type: parsed.type,
           muted: true,
           volume: 80,
           paused: false,
           filter: 0,
-          isLive: null,
+          isLive: parsed.type === "kick" ? true : null,
           currentTime: 0,
           duration: 0,
         };
+        ensureTrailingEmpty();
         closeModal();
         render();
       }
@@ -1597,6 +1867,7 @@
           confirmAdd();
       });
 
+      applyOsdMode();
       render();
     </script>
   </body>
