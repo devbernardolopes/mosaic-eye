@@ -715,6 +715,16 @@
       body:not(.custom-osd) .tile[data-tileType="twitch"] iframe {
         pointer-events: auto !important;
       }
+      /* Keep Kick native controls visible (avoid bottom clipping by custom footer). */
+      body:not(.custom-osd) .tile[data-tileType="kick"] {
+        padding-bottom: 0 !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="kick"] iframe {
+        height: 100% !important;
+      }
+      body:not(.custom-osd) .tile[data-tileType="kick"] .tile-footer {
+        display: none !important;
+      }
 
       /* ── Empty tile ── */
       .tile-empty {
@@ -1094,8 +1104,8 @@
           letter-spacing: 1px;
         "
       >
-        SUPPORTS YOUTUBE, KICK, TWITCH &nbsp;&middot;&nbsp; CTRL + SHIFT + E ->
-        ADD &nbsp;&middot;&nbsp; CTRL + SHIFT + H -> HISTORY
+        SUPPORTS YOUTUBE, KICK, TWITCH &nbsp;&middot;&nbsp; CTRL + SHIFT + E
+        -&gt; ADD &nbsp;&middot;&nbsp; CTRL + SHIFT + H -&gt; HISTORY
         &nbsp;&middot;&nbsp; CLIPBOARD URL AUTO-FILL
       </span>
     </div>
@@ -1643,7 +1653,11 @@
 
       function buildEmbedUrl(type, id) {
         if (type === "kick") {
-          return "https://player.kick.com/" + id;
+          return (
+            "https://player.kick.com/" +
+            id +
+            "?autoplay=true&muted=false&allowfullscreen=true"
+          );
         }
         if (type === "twitch") {
           return (
